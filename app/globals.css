@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/publicsans/v15/ijO7LrS_Xvny8E4ptos_auvS8p9iafeK-H-O.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/jetbrainsmono/v18/t6fq20ocY-pRE978JzE6n_u3_XmO_uV7_3Bv8A.woff2) format('woff2');
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --blueprint-grid: #e5e7eb;
+  --technical-border: #334155;
+  --trace-glow: #3b82f6;
+  --safety-red: #ef4444;
+}
+
+@theme {
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular;
+  --color-blueprint: var(--blueprint-grid);
+  --color-trace: var(--trace-glow);
+  --color-safety: var(--safety-red);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Technical Dot-Grid Background */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(var(--blueprint-grid) 1px, transparent 1px);
+  background-size: 10px 10px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.5;
+}
+
+.technical-card {
+  border: 1px solid var(--technical-border);
+  background: white;
+  position: relative;
+}
+
+.spec-row:hover {
+  background: rgba(59, 130, 246, 0.05);
+  box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.1);
+}
+
+.circuit-glow {
+  box-shadow: 0 0 15px var(--trace-glow);
+  border-color: var(--trace-glow);
+}
+
+.radar-pulse {
+  animation: radar 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes radar {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
