@@ -1,62 +1,64 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Navbar from "@/components/ui/Navbar";
 import AdaptiveSidebar from "@/components/wiki/AdaptiveSidebar";
 import RegistryCard from "@/components/wiki/RegistryCard";
-import { Search, Radar } from "lucide-react";
+import { Search, Radar, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RegistryItem } from "@/lib/schemas";
-
-// Mock Data
-const MOCK_ITEMS: RegistryItem[] = [
-  {
-    slug: "esp32-wroom-32",
-    name: "ESP32-WROOM-32D",
-    category: "mcu",
-    tags: ["Wi-Fi", "Bluetooth", "Dual-Core"],
-    specifications: { "Voltage": "3.3V", "Clock": "240MHz", "Cores": 2 },
-    image: "https://www.espressif.com/sites/default/files/esp32-wroom-32d_32u_front.png"
-  },
-  {
-    slug: "dht22-sensor",
-    name: "DHT22 Temperature & Humidity",
-    category: "sensor",
-    tags: ["Digital", "I2C", "Low Power"],
-    specifications: { "Range": "-40 to 80C", "Accuracy": "0.5C", "Voltage": "3-5V" }
-  },
-  {
-    slug: "tp4056-charger",
-    name: "TP4056 Li-Ion Charger",
-    category: "power",
-    tags: ["USB-C", "1A", "Protection"],
-    specifications: { "Input": "5V", "Output": "4.2V", "Current": "1A" }
-  }
-];
-
-const CATEGORIES = [
-  { id: "mcu", name: "Microcontrollers", count: 1 },
-  { id: "sensor", name: "Sensors", count: 1 },
-  { id: "power", name: "Power Management", count: 1 }
-];
+import { RegistryItem, Category } from "@/lib/schemas";
+import { getRegistryItems, getCategoriesWithCounts } from "@/lib/firebase/registryService";
+import { CardSkeleton } from "@/components/ui/Skeletons";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
 
 export default function WikiPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [items, setItems] = useState<RegistryItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [itemsResult, categoriesResult] = await Promise.all([
+        getRegistryItems({ category: activeCategory, searchQuery: search }),
+        getCategoriesWithCounts(),
+      ]);
+      setItems(itemsResult.items);
+      setCategories(categoriesResult);
+    } catch (err: any) {
+      console.error("Failed to fetch registry data:", err);
+      setError(err.message || "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [activeCategory]);
+
+  // Client-side search filtering for responsiveness
   const filteredItems = useMemo(() => {
-    return MOCK_ITEMS.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
-                           item.tags.some(t => t.toLowerCase().includes(search.toLowerCase()));
-      const matchesCategory = !activeCategory || item.category === activeCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [search, activeCategory]);
+    if (!search) return items;
+    const q = search.toLowerCase();
+    return items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        item.tags.some((t) => t.toLowerCase().includes(q)) ||
+        item.category.toLowerCase().includes(q) ||
+        (item.description && item.description.toLowerCase().includes(q))
+    );
+  }, [items, search]);
 
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      
+
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
         <header className="mb-12">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -79,48 +81,54 @@ export default function WikiPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                <Radar className={`h-4 w-4 ${search ? 'text-blue-500 animate-pulse' : 'text-slate-300'}`} />
+                <Radar className={`h-4 w-4 ${search ? "text-blue-500 animate-pulse" : "text-slate-300"}`} />
               </div>
             </div>
           </div>
         </header>
 
         <div className="flex flex-col md:flex-row gap-12">
-          <AdaptiveSidebar 
-            categories={CATEGORIES}
+          <AdaptiveSidebar
+            categories={categories}
             activeCategory={activeCategory}
             onCategoryChange={setActiveCategory}
           />
 
           <div className="flex-grow">
-            <AnimatePresence mode="popLayout">
-              {filteredItems.length > 0 ? (
-                <motion.div 
-                  layout
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                >
-                  {filteredItems.map((item) => (
-                    <motion.div
-                      key={item.slug}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <RegistryCard item={item} />
-                    </motion.div>
-                  ))}
-                </motion.div>
-              ) : (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="technical-card p-12 text-center border-dashed border-slate-300"
-                >
-                  <p className="font-mono text-sm text-slate-400">NO_RECORDS_FOUND_FOR_QUERY</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {error ? (
+              <ErrorState message={error} onRetry={fetchData} />
+            ) : loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <CardSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {filteredItems.length > 0 ? (
+                  <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredItems.map((item) => (
+                      <motion.div
+                        key={item.slug}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <RegistryCard item={item} />
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                ) : (
+                  <EmptyState
+                    title="NO_RECORDS_FOUND_FOR_QUERY"
+                    message={search ? `No results for "${search}". Try different keywords or clear filters.` : "No components registered yet. Be the first to contribute!"}
+                    actionLabel={search ? undefined : "Submit a Component"}
+                    actionHref={search ? undefined : "/submit"}
+                  />
+                )}
+              </AnimatePresence>
+            )}
           </div>
         </div>
       </main>
