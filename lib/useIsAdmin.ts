@@ -13,7 +13,7 @@ export function useIsAdmin() {
       return;
     }
 
-    fetch("/api/admin/check")
+    fetch("/api/admin/check", { credentials: "include" })
       .then((res) => res.json())
       .then((data) => setIsAdmin(data.isAdmin === true))
       .catch(() => setIsAdmin(false));

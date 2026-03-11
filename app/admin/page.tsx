@@ -89,9 +89,11 @@ export default function AdminPage() {
   };
 
   const handlePromote = async () => {
-    const email = promoteEmail.trim();
-    if (!email || !email.includes("@")) {
-      toast("Enter a valid email", "error");
+    // Normalize: trim, and replace fullwidth/unicode @ with ASCII @
+    const raw = (promoteEmail ?? "").trim().replace(/＠/g, "@");
+    const email = raw.toLowerCase();
+    if (!email || !email.includes("@") || email.length < 5) {
+      toast("Enter a valid email (e.g. user@example.com)", "error");
       return;
     }
     try {
@@ -107,7 +109,8 @@ export default function AdminPage() {
         setPromoteEmail("");
         toast(`Promoted ${email} to admin`, "success");
       } else {
-        toast(data.error || "Failed to promote", "error");
+        const msg = data.error || (res.status === 401 ? "You must be signed in as an admin" : "Failed to promote");
+        toast(msg, "error");
       }
     } catch {
       toast("Failed to promote", "error");
@@ -400,8 +403,10 @@ export default function AdminPage() {
                     </p>
                     <div className="flex gap-2">
                       <input
-                        type="email"
+                        type="text"
+                        inputMode="email"
                         placeholder="email@example.com"
+                        autoComplete="email"
                         value={promoteEmail}
                         onChange={(e) => setPromoteEmail(e.target.value)}
                         className="flex-1 px-3 py-2 border border-slate-200 font-mono text-sm"

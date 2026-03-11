@@ -6,16 +6,21 @@ export async function getSessionOrNull() {
   return getServerSession(authOptions);
 }
 
+function normalizeEmail(e: string | undefined): string {
+  return (e ?? "").trim().toLowerCase();
+}
+
 export async function getAdminEmailOrNull(): Promise<string | null> {
   const session = await getServerSession(authOptions);
-  const email = session?.user?.email;
-  if (!email) return null;
+  const rawEmail = session?.user?.email;
+  if (!rawEmail) return null;
+  const email = normalizeEmail(rawEmail);
 
   const db = getAdminDb();
   const docRef = db.collection(ADMINS_COLLECTION).doc(ADMINS_DOC_ID);
   const snap = await docRef.get();
-  let emails: string[] = snap.exists ? (snap.data()?.list ?? []) : [];
-  const envAdmin = process.env.ADMIN_EMAIL;
+  let emails: string[] = (snap.exists ? (snap.data()?.list ?? []) : []).map(normalizeEmail);
+  const envAdmin = normalizeEmail(process.env.ADMIN_EMAIL);
 
   // Auto-seed: if list empty and user matches ADMIN_EMAIL, add them
   if (emails.length === 0 && envAdmin && email === envAdmin) {
@@ -23,7 +28,7 @@ export async function getAdminEmailOrNull(): Promise<string | null> {
     await docRef.set({ list: emails, updatedAt: new Date() });
   }
 
-  const isAdmin = email === envAdmin || emails.includes(email);
+  const isAdmin = (envAdmin && email === envAdmin) || emails.includes(email);
   return isAdmin ? email : null;
 }
 

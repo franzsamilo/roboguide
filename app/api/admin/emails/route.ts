@@ -21,19 +21,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
-  const email = body?.email?.trim?.();
-  if (!email || !email.includes("@")) {
+  let body: { email?: string };
+  try {
+    body = await req.json();
+  } catch {
     return NextResponse.json(
-      { error: "Valid email required" },
+      { error: "Invalid request body" },
       { status: 400 }
     );
   }
+  const rawEmail = (body?.email ?? "")
+    .trim()
+    .replace(/\uFF20/g, "@") // fullwidth @ → ASCII @
+    .toLowerCase();
+  if (!rawEmail || !rawEmail.includes("@") || rawEmail.length < 5) {
+    return NextResponse.json(
+      { error: "Valid email required (e.g. user@example.com)" },
+      { status: 400 }
+    );
+  }
+  const email = rawEmail;
 
   const db = getAdminDb();
   const docRef = db.collection(ADMINS_COLLECTION).doc(ADMINS_DOC_ID);
   const snap = await docRef.get();
-  const emails: string[] = snap.exists ? (snap.data()?.list ?? []) : [];
+  const emails: string[] = (snap.exists ? (snap.data()?.list ?? []) : []).map((e: string) =>
+    (e ?? "").trim().toLowerCase()
+  );
 
   if (emails.includes(email)) {
     return NextResponse.json({ message: "Already admin", emails });
@@ -52,7 +66,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const email = searchParams.get("email")?.trim();
+  const email = searchParams.get("email")?.trim()?.toLowerCase();
   if (!email) {
     return NextResponse.json(
       { error: "Email query param required" },
@@ -60,8 +74,8 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  const envAdmin = process.env.ADMIN_EMAIL;
-  if (email === envAdmin) {
+  const envAdmin = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase() || null;
+  if (envAdmin && email === envAdmin) {
     return NextResponse.json(
       { error: "Cannot remove env-configured first admin" },
       { status: 400 }
@@ -71,7 +85,9 @@ export async function DELETE(req: NextRequest) {
   const db = getAdminDb();
   const docRef = db.collection(ADMINS_COLLECTION).doc(ADMINS_DOC_ID);
   const snap = await docRef.get();
-  const emails: string[] = snap.exists ? (snap.data()?.list ?? []) : [];
+  const emails: string[] = (snap.exists ? (snap.data()?.list ?? []) : []).map((e: string) =>
+    (e ?? "").trim().toLowerCase()
+  );
 
   const filtered = emails.filter((e) => e !== email);
   if (filtered.length === emails.length) {
