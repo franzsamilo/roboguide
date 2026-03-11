@@ -20,25 +20,29 @@ export default function AdaptiveSidebar({
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
   return (
-    <aside className="w-full md:w-64 flex-shrink-0">
-      <div className="technical-card p-6 border-slate-200">
-        <div className="flex items-center gap-2 mb-6 text-slate-400">
-          <Filter className="h-4 w-4" />
-          <span className="font-mono text-xs uppercase tracking-widest font-bold">Registry Filters</span>
+    <aside className="w-full md:w-64 shrink-0">
+      <div className="card-flat p-5">
+        <div className="flex items-center gap-2 mb-5">
+          <Filter className="h-4 w-4 text-gray-400" />
+          <span className="text-sm font-semibold text-gray-700">Filter by Category</span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1">
           <button
             onClick={() => onCategoryChange(null)}
-            className={`w-full text-left px-3 py-2 font-mono text-xs flex items-center justify-between transition-all ${
-              activeCategory === null ? "bg-slate-900 text-white" : "hover:bg-slate-50 text-slate-600"
+            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between transition-all ${
+              activeCategory === null
+                ? "bg-blue-600 text-white font-medium"
+                : "hover:bg-gray-50 text-gray-600"
             }`}
           >
             <div className="flex items-center gap-2">
-              <Tag className="h-3 w-3" />
-              <span>ALL COMPONENTS</span>
+              <Tag className="h-4 w-4" />
+              <span>All Components</span>
             </div>
-            <span className="opacity-50">[{totalCount}]</span>
+            <span className={`text-xs ${activeCategory === null ? "text-blue-200" : "text-gray-400"}`}>
+              {totalCount}
+            </span>
           </button>
 
           <AnimatePresence mode="popLayout">
@@ -52,27 +56,23 @@ export default function AdaptiveSidebar({
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   onClick={() => onCategoryChange(cat.id)}
-                  className={`w-full text-left px-3 py-2 font-mono text-xs flex items-center justify-between transition-all ${
-                    activeCategory === cat.id ? "bg-blue-600 text-white" : "hover:bg-slate-50 text-slate-600"
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between transition-all ${
+                    activeCategory === cat.id
+                      ? "bg-blue-600 text-white font-medium"
+                      : "hover:bg-gray-50 text-gray-600"
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <IconComponent className="h-3 w-3" />
-                    <span>{cat.name.toUpperCase()}</span>
+                    <IconComponent className="h-4 w-4" />
+                    <span>{cat.name}</span>
                   </div>
-                  <span className="opacity-50">[{cat.count}]</span>
+                  <span className={`text-xs ${activeCategory === cat.id ? "text-blue-200" : "text-gray-400"}`}>
+                    {cat.count}
+                  </span>
                 </motion.button>
               );
             })}
           </AnimatePresence>
-        </div>
-
-        <div className="mt-8 pt-6 border-t border-slate-100">
-          <div className="text-[10px] text-slate-400 font-mono mb-4 uppercase tracking-[0.2em]">System Status</div>
-          <div className="flex items-center gap-2 text-[10px] font-mono text-green-500">
-            <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            FIREBASE_LIVE
-          </div>
         </div>
       </div>
     </aside>

@@ -1,34 +1,28 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 export default function ErrorState({
-  title = "SYSTEM_ERROR",
-  message = "Something went wrong. Please try again.",
+  title,
+  message,
   onRetry,
 }: {
   title?: string;
-  message?: string;
+  message: string;
   onRetry?: () => void;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="technical-card p-12 text-center border-red-200"
-    >
-      <AlertTriangle className="h-12 w-12 text-red-300 mx-auto mb-4" />
-      <p className="font-mono text-sm text-red-500 uppercase mb-2">{title}</p>
-      <p className="text-sm text-slate-500 font-sans mb-6">{message}</p>
+    <div className="card-flat p-12 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-5">
+        <AlertCircle className="h-8 w-8 text-red-400" />
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title || "Something Went Wrong"}</h3>
+      <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">{message}</p>
       {onRetry && (
-        <button
-          onClick={onRetry}
-          className="inline-flex items-center gap-2 px-6 py-3 border border-red-200 text-red-600 font-mono text-xs font-bold uppercase hover:bg-red-50 transition-all"
-        >
-          <RefreshCw className="h-4 w-4" /> Retry
+        <button onClick={onRetry} className="btn-outline">
+          <RefreshCw className="h-4 w-4" /> Try Again
         </button>
       )}
-    </motion.div>
+    </div>
   );
 }

@@ -9,21 +9,24 @@ import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Database, FileText, Trash2, Edit3, Plus, Eye, BookOpen,
-  Cpu, Radio, Zap, ChevronRight, Users, Activity
+  Cpu, ChevronRight, Users, Activity, UserPlus, UserMinus, Pencil, Send
 } from "lucide-react";
 import {
   getRegistryItems,
-  deleteRegistryItem,
   getCategoriesWithCounts,
 } from "@/lib/firebase/registryService";
-import { getAllGuides, deleteGuide } from "@/lib/firebase/guideService";
+import { deleteRegistryItem, updateRegistryItem } from "@/lib/api/registry";
+import { getAllGuides } from "@/lib/firebase/guideService";
+import { deleteGuide } from "@/lib/api/guides";
 import { PageSkeleton } from "@/components/ui/Skeletons";
 import EmptyState from "@/components/ui/EmptyState";
 import type { RegistryItem, Guide, Category } from "@/lib/schemas";
 import Link from "next/link";
 
+type Tab = "components" | "guides" | "admins";
+
 export default function AdminPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -31,20 +34,27 @@ export default function AdminPage() {
   const [items, setItems] = useState<RegistryItem[]>([]);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [admins, setAdmins] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"components" | "guides">("components");
+  const [activeTab, setActiveTab] = useState<Tab>("components");
+  const [promoteEmail, setPromoteEmail] = useState("");
+  const [adminsLoading, setAdminsLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/");
+      return;
     }
-  }, [user, authLoading, router]);
+    if (!authLoading && user && isAdmin === false) {
+      router.push("/");
+    }
+  }, [user, authLoading, isAdmin, router]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [itemsResult, guidesResult, catsResult] = await Promise.all([
-        getRegistryItems({ status: undefined }),
+        getRegistryItems({ status: "all" }),
         getAllGuides(),
         getCategoriesWithCounts(),
       ]);
@@ -61,6 +71,73 @@ export default function AdminPage() {
   useEffect(() => {
     if (user) fetchData();
   }, [user]);
+
+  const fetchAdmins = async () => {
+    if (!user) return;
+    setAdminsLoading(true);
+    try {
+      const res = await fetch("/api/admin/emails", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setAdmins(data.emails ?? []);
+      }
+    } catch {
+      toast("Failed to load admins", "error");
+    } finally {
+      setAdminsLoading(false);
+    }
+  };
+
+  const handlePromote = async () => {
+    const email = promoteEmail.trim();
+    if (!email || !email.includes("@")) {
+      toast("Enter a valid email", "error");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/emails", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAdmins(data.emails ?? []);
+        setPromoteEmail("");
+        toast(`Promoted ${email} to admin`, "success");
+      } else {
+        toast(data.error || "Failed to promote", "error");
+      }
+    } catch {
+      toast("Failed to promote", "error");
+    }
+  };
+
+  const handleDemote = async (email: string) => {
+    const confirmed = await confirm({
+      title: "Remove Admin",
+      message: `Remove ${email} from admins? They will lose access to the admin panel.`,
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`/api/admin/emails?email=${encodeURIComponent(email)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAdmins(data.emails ?? []);
+        toast(`Removed ${email} from admins`, "success");
+      } else {
+        toast(data.error || "Failed to remove", "error");
+      }
+    } catch {
+      toast("Failed to remove", "error");
+    }
+  };
 
   const handleDeleteItem = async (item: RegistryItem) => {
     const confirmed = await confirm({
@@ -98,7 +175,8 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading || !user) return null;
+  if (authLoading || !user || isAdmin === null) return null;
+  if (isAdmin === false) return null;
 
   const totalComponents = items.length;
   const totalGuides = guides.length;
@@ -108,7 +186,7 @@ export default function AdminPage() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
+      <main className="grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
         <header className="mb-12">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
@@ -118,8 +196,8 @@ export default function AdminPage() {
                   Admin Console Active
                 </span>
               </div>
-              <h1 className="text-4xl font-bold tracking-tighter uppercase font-sans">Control Panel</h1>
-              <p className="text-slate-500 font-mono text-sm mt-1">ADMIN_ACCESS // {user.displayName}</p>
+              <h1 className="text-4xl font-bold tracking-tighter uppercase font-sans">Admin Terminal</h1>
+              <p className="text-slate-500 font-mono text-sm mt-1">ADMIN_ACCESS // {user.name} • {user.email}</p>
             </div>
             <div className="flex gap-3">
               <Link
@@ -157,22 +235,27 @@ export default function AdminPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 mb-8">
-          {(["components", "guides"] as const).map((tab) => (
+        <div className="flex border-b border-slate-200 mb-8 flex-wrap gap-1">
+          {(
+            [
+              ["components", "Components", Database, totalComponents],
+              ["guides", "Guides", BookOpen, totalGuides],
+              ["admins", "Admins", Users, admins.length],
+            ] as const
+          ).map(([tab, label, Icon, count]) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 font-mono text-xs font-bold uppercase tracking-widest transition-all border-b-2 -mb-[1px] ${
+              onClick={() => {
+                setActiveTab(tab);
+                if (tab === "admins") fetchAdmins();
+              }}
+              className={`px-6 py-3 font-mono text-xs font-bold uppercase tracking-widest transition-all border-b-2 -mb-[1px] flex items-center gap-2 ${
                 activeTab === tab
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              {tab === "components" ? (
-                <span className="flex items-center gap-2"><Database className="h-3 w-3" /> Components ({totalComponents})</span>
-              ) : (
-                <span className="flex items-center gap-2"><BookOpen className="h-3 w-3" /> Guides ({totalGuides})</span>
-              )}
+              <Icon className="h-3 w-3" /> {label} ({count})
             </button>
           ))}
         </div>
@@ -198,7 +281,7 @@ export default function AdminPage() {
                         layout
                         className="technical-card p-4 flex items-center gap-4 hover:border-blue-500 transition-colors group"
                       >
-                        <div className="w-12 h-12 bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                        <div className="w-12 h-12 bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
                           {item.image ? (
                             <img src={item.image} alt="" className="w-full h-full object-contain p-1 mix-blend-multiply" />
                           ) : (
@@ -220,7 +303,24 @@ export default function AdminPage() {
                             {item.category} • {item.tags.slice(0, 3).join(", ")} • {item.viewCount || 0} views
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 sm:gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          {item.status === "draft" && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await updateRegistryItem(item.id!, { status: "published" });
+                                  setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, status: "published" } : i));
+                                  toast(`"${item.name}" published`, "success");
+                                } catch (e: any) {
+                                  toast(e.message || "Failed to publish", "error");
+                                }
+                              }}
+                              className="p-2 hover:bg-emerald-50 transition-all text-emerald-600"
+                              title="Publish"
+                            >
+                              <Send className="h-4 w-4" />
+                            </button>
+                          )}
                           <Link href={`/wiki/${item.slug}`} className="p-2 hover:bg-slate-50 transition-all" title="View">
                             <Eye className="h-4 w-4 text-slate-400" />
                           </Link>
@@ -231,7 +331,7 @@ export default function AdminPage() {
                             <Trash2 className="h-4 w-4 text-red-400" />
                           </button>
                         </div>
-                        <ChevronRight className="h-4 w-4 text-slate-300 flex-shrink-0" />
+                        <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
                       </motion.div>
                     ))}
                   </div>
@@ -256,7 +356,7 @@ export default function AdminPage() {
                         layout
                         className="technical-card p-4 flex items-center gap-4 hover:border-blue-500 transition-colors group"
                       >
-                        <div className="w-12 h-12 bg-blue-50 border border-blue-200 flex items-center justify-center flex-shrink-0">
+                        <div className="w-12 h-12 bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
                           <FileText className="h-5 w-5 text-blue-400" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -264,8 +364,18 @@ export default function AdminPage() {
                           <p className="text-[10px] font-mono text-slate-400 uppercase">
                             linked: {guide.registrySlug} • {guide.hyperlocalTags.join(", ") || "no tags"}
                           </p>
+                          {guide.authorName && (
+                            <p className="text-xs text-slate-500 mt-1">by {guide.authorName}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Link
+                            href={`/admin/guides/${guide.id}/edit`}
+                            className="p-2 hover:bg-blue-50 transition-all"
+                            title="Edit"
+                          >
+                            <Pencil className="h-4 w-4 text-blue-500" />
+                          </Link>
                           <button onClick={() => handleDeleteGuide(guide)} className="p-2 hover:bg-red-50 transition-all" title="Delete">
                             <Trash2 className="h-4 w-4 text-red-400" />
                           </button>
@@ -274,6 +384,63 @@ export default function AdminPage() {
                     ))}
                   </div>
                 )}
+              </motion.div>
+            )}
+
+            {activeTab === "admins" && (
+              <motion.div key="admins" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <div className="technical-card p-6 space-y-6">
+                  <p className="text-xs text-slate-500">
+                    First admin is auto-added from <code className="bg-slate-100 px-1">ADMIN_EMAIL</code> when you sign in. Promote others below.
+                  </p>
+                  <div>
+                    <h3 className="text-sm font-bold mb-2">Promote admin</h3>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Add an email to grant admin access. Admins manage components, guides, photos, videos, and content.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        placeholder="email@example.com"
+                        value={promoteEmail}
+                        onChange={(e) => setPromoteEmail(e.target.value)}
+                        className="flex-1 px-3 py-2 border border-slate-200 font-mono text-sm"
+                      />
+                      <button
+                        onClick={handlePromote}
+                        className="px-4 py-2 bg-blue-600 text-white font-mono text-xs uppercase hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      >
+                        <UserPlus className="h-4 w-4" /> Promote
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold mb-2">Admin list</h3>
+                    {adminsLoading ? (
+                      <p className="text-xs text-slate-500">Loading...</p>
+                    ) : admins.length === 0 ? (
+                      <p className="text-xs text-slate-500">No admins in list yet. First admin is auto-added from ADMIN_EMAIL on sign-in.</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {admins.map((email) => (
+                          <li
+                            key={email}
+                            className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded font-mono text-xs"
+                          >
+                            <span>{email}</span>
+                            <button
+                              onClick={() => handleDemote(email)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                              title="Remove admin (env ADMIN_EMAIL cannot be removed)"
+                            >
+                              <UserMinus className="h-4 w-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

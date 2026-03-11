@@ -1,33 +1,23 @@
 import Link from "next/link";
-import { Cpu } from "lucide-react";
+import { Home, Search } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4">
-      <div className="text-center">
-        <div className="relative inline-block mb-8">
-          <Cpu className="h-16 w-16 text-slate-200" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="font-mono text-[10px] font-bold text-red-500">ERR</span>
-          </div>
-        </div>
-        <h1 className="text-8xl font-black tracking-tighter text-slate-200 mb-4 font-mono">404</h1>
-        <h2 className="text-xl font-bold uppercase mb-2">PAGE_NOT_FOUND</h2>
-        <p className="text-slate-500 font-mono text-sm mb-8 uppercase">
-          The requested resource does not exist in the registry.
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-gray-50">
+      <div className="text-center max-w-md">
+        <div className="text-8xl font-extrabold text-gray-200 mb-4">404</div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Page Not Found</h1>
+        <p className="text-gray-500 mb-8">
+          The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
-        <div className="flex items-center justify-center gap-4">
-          <Link
-            href="/"
-            className="px-6 py-3 bg-slate-900 text-white font-mono text-xs font-bold uppercase tracking-widest hover:bg-black transition-colors"
-          >
-            Return Home
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link href="/" className="btn-primary">
+            <Home className="h-4 w-4" />
+            Go Home
           </Link>
-          <Link
-            href="/wiki"
-            className="px-6 py-3 border border-technical-border font-mono text-xs font-bold uppercase tracking-widest hover:bg-slate-50 transition-all"
-          >
-            Browse Wiki
+          <Link href="/wiki" className="btn-outline">
+            <Search className="h-4 w-4" />
+            Browse Components
           </Link>
         </div>
       </div>

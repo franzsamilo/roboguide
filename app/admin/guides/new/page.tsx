@@ -6,7 +6,7 @@ import Navbar from "@/components/ui/Navbar";
 import MediaUploader from "@/components/admin/MediaUploader";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
-import { addGuide } from "@/lib/firebase/guideService";
+import { addGuide } from "@/lib/api/guides";
 import { getRegistryItems } from "@/lib/firebase/registryService";
 import { motion } from "framer-motion";
 import { ArrowLeft, Save, Plus, X, Loader2, MapPin } from "lucide-react";
@@ -50,7 +50,7 @@ function NewGuidePageInner() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    getRegistryItems({}).then((result) => setRegistryItems(result.items)).catch(() => {});
+    getRegistryItems({ status: "published" }).then((result) => setRegistryItems(result.items)).catch(() => {});
   }, []);
 
   if (authLoading || !user) return null;
@@ -80,8 +80,8 @@ function NewGuidePageInner() {
     try {
       await addGuide({
         ...form,
-        authorId: user.uid,
-        authorName: user.displayName || "Unknown",
+        authorId: user.id,
+        authorName: user.name || "Unknown",
       });
       toast(`Guide "${form.title}" created!`, "success");
       router.push("/admin");
@@ -95,7 +95,7 @@ function NewGuidePageInner() {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-grow max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
+      <main className="grow max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
         <Link href="/admin" className="flex items-center gap-2 mb-8 font-mono text-xs text-slate-500 hover:text-blue-500 transition-colors uppercase tracking-widest">
           <ArrowLeft className="h-4 w-4" /> Back to Admin
         </Link>

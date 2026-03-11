@@ -1,39 +1,35 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ServerCrash } from "lucide-react";
 import Link from "next/link";
+import { Inbox, type LucideIcon } from "lucide-react";
 
 export default function EmptyState({
-  title = "NO_RECORDS_FOUND",
-  message = "There are no items matching your criteria.",
+  title,
+  message,
   actionLabel,
   actionHref,
-  icon: Icon = ServerCrash,
+  icon: Icon,
 }: {
-  title?: string;
-  message?: string;
+  title: string;
+  message: string;
   actionLabel?: string;
   actionHref?: string;
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: LucideIcon;
 }) {
+  const DisplayIcon = Icon || Inbox;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="technical-card p-16 text-center border-dashed border-slate-300"
-    >
-      <Icon className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-      <p className="font-mono text-sm text-slate-400 uppercase mb-2">{title}</p>
-      <p className="text-sm text-slate-500 font-sans max-w-md mx-auto mb-6">{message}</p>
+    <div className="card-flat p-12 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-5">
+        <DisplayIcon className="h-8 w-8 text-gray-300" />
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+      <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">{message}</p>
       {actionLabel && actionHref && (
-        <Link
-          href={actionHref}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 text-white font-mono text-xs font-bold uppercase tracking-widest hover:bg-black transition-colors"
-        >
+        <Link href={actionHref} className="btn-primary">
           {actionLabel}
         </Link>
       )}
-    </motion.div>
+    </div>
   );
 }

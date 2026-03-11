@@ -3,13 +3,13 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/ui/Navbar";
+import Footer from "@/components/ui/Footer";
 import SpecsTable from "@/components/registry/SpecsTable";
 import MediaGallery from "@/components/registry/MediaGallery";
-import TraceLineSVG from "@/components/registry/TraceLineSVG";
-import { VoltageIcon, PinoutIcon, SensorIcon, PowerIcon } from "@/components/icons/hardware/Icons";
 import { motion } from "framer-motion";
-import { MapPin, Share2, Printer, ArrowLeft, ExternalLink, FileText, Copy, Check } from "lucide-react";
-import { getRegistryItemBySlug, incrementViewCount } from "@/lib/firebase/registryService";
+import { MapPin, Share2, ArrowLeft, ExternalLink, FileText, Copy, Check, Eye, Tag } from "lucide-react";
+import { getRegistryItemBySlug } from "@/lib/firebase/registryService";
+import { incrementViewCount } from "@/lib/api/registry";
 import { getGuidesForItem } from "@/lib/firebase/guideService";
 import { DetailSkeleton } from "@/components/ui/Skeletons";
 import ErrorState from "@/components/ui/ErrorState";
@@ -42,7 +42,6 @@ export default function RegistryDetailPage() {
         }
         setItem(itemData);
         setGuides(guidesData);
-        // Track view count
         if (itemData.id) {
           incrementViewCount(itemData.id).catch(() => {});
         }
@@ -63,7 +62,6 @@ export default function RegistryDetailPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
       const input = document.createElement("input");
       input.value = url;
       document.body.appendChild(input);
@@ -79,231 +77,215 @@ export default function RegistryDetailPage() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 relative">
+      <main className="grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10">
         {/* Back Button */}
         <button
           onClick={() => router.push("/wiki")}
-          className="flex items-center gap-2 mb-8 font-mono text-xs text-slate-500 hover:text-blue-500 transition-colors uppercase tracking-widest"
+          className="flex items-center gap-2 mb-8 text-sm text-gray-500 hover:text-blue-600 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Registry
+          <ArrowLeft className="h-4 w-4" /> Back to Components
         </button>
 
         {loading ? (
           <DetailSkeleton />
         ) : error ? (
           <ErrorState
-            title="ITEM_NOT_FOUND"
+            title="Component Not Found"
             message={error}
             onRetry={() => window.location.reload()}
           />
         ) : item ? (
-          <>
-            <TraceLineSVG />
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 relative z-10">
-              {/* Left Column: Image & Media */}
-              <div className="lg:col-span-5 space-y-8">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="technical-card p-12 aspect-square flex items-center justify-center bg-white relative"
-                >
-                  <div className="absolute top-4 left-4 font-mono text-[10px] text-slate-400">REFERENCE_UNIT_A1</div>
-                  {item.status === "draft" && (
-                    <div className="absolute top-4 right-4 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-mono font-bold">DRAFT</div>
-                  )}
-                  {item.image ? (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="max-w-full max-h-full object-contain mix-blend-multiply"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <div className="text-slate-200 font-mono text-6xl font-black uppercase">
-                      {item.name.slice(0, 2)}
-                    </div>
-                  )}
-                </motion.div>
-
-                {item.mediaUrls && item.mediaUrls.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500">Visual Evidence</h3>
-                    <MediaGallery urls={item.mediaUrls} />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            {/* Left Column: Image & Media */}
+            <div className="lg:col-span-5 space-y-6">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="card-flat p-10 aspect-square flex items-center justify-center bg-gray-50 relative"
+              >
+                {item.status === "draft" && (
+                  <div className="absolute top-4 right-4 badge badge-orange text-xs font-semibold">Draft</div>
+                )}
+                {item.image ? (
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <div className="text-gray-200 text-7xl font-black">
+                    {item.name.slice(0, 2)}
                   </div>
                 )}
-              </div>
+              </motion.div>
 
-              {/* Right Column: Title, Specs, Content */}
-              <div className="lg:col-span-7 space-y-12">
-                <header>
-                  <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <span className="px-2 py-0.5 border border-blue-500 text-blue-600 text-[10px] font-mono font-bold uppercase">
-                      {item.category}
-                    </span>
-                    <span className="text-slate-300 font-mono text-[10px]">VERIFIED_COMPONENT</span>
-                    {item.viewCount > 0 && (
-                      <span className="text-slate-300 font-mono text-[10px]">{item.viewCount} VIEWS</span>
+              {item.mediaUrls && item.mediaUrls.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Gallery</h3>
+                  <MediaGallery urls={item.mediaUrls} />
+                </div>
+              )}
+
+              {item.pinout && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Pinout</h3>
+                  <div className="technical-card p-4 bg-white">
+                    {item.pinout.startsWith("http") ? (
+                      item.pinout.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i) ? (
+                        <img src={item.pinout} alt="Pinout diagram" className="max-w-full h-auto" />
+                      ) : (
+                        <a href={item.pinout} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-2">
+                          <ExternalLink className="h-4 w-4" /> View pinout diagram
+                        </a>
+                      )
+                    ) : (
+                      <pre className="text-xs font-mono text-gray-700 whitespace-pre-wrap overflow-x-auto">{item.pinout}</pre>
                     )}
                   </div>
-                  <h1 className="text-4xl md:text-5xl font-bold tracking-tighter uppercase mb-4">{item.name}</h1>
-                  {item.description && (
-                    <p className="text-slate-600 text-lg leading-relaxed font-sans max-w-2xl">
-                      {item.description}
-                    </p>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Title, Specs, Content */}
+            <div className="lg:col-span-7 space-y-8">
+              <header>
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span className="badge badge-blue">{item.category}</span>
+                  {item.viewCount > 0 && (
+                    <span className="badge">
+                      <Eye className="h-3 w-3" /> {item.viewCount} views
+                    </span>
                   )}
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-3">{item.name}</h1>
+                {item.description && (
+                  <p className="text-gray-500 text-lg leading-relaxed max-w-2xl">
+                    {item.description}
+                  </p>
+                )}
 
-                  {/* Tags */}
-                  {item.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {item.tags.map((tag) => (
-                        <span key={tag} className="text-[10px] font-mono px-2 py-1 bg-slate-100 text-slate-600 border border-slate-200 uppercase">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </header>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <SpecsTable specs={item.specifications} />
+                {item.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {item.tags.map((tag) => (
+                      <span key={tag} className="badge">{tag}</span>
+                    ))}
                   </div>
+                )}
+              </header>
 
-                  <div className="space-y-6">
-                    <div className="technical-card p-6 flex flex-col gap-4">
-                      <h4 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100 pb-2">
-                        Active State Indicators
-                      </h4>
-                      <div className="flex justify-between items-center group cursor-default">
-                        <div className="flex items-center gap-2">
-                          <VoltageIcon active />
-                          <span className="text-xs font-mono">SUPPLY_VOLTAGE</span>
-                        </div>
-                        <span className="text-xs font-mono font-bold text-blue-600">
-                          {item.specifications["Voltage"] || item.specifications["Input"] || "N/A"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center group cursor-default">
-                        <div className="flex items-center gap-2">
-                          <PinoutIcon active />
-                          <span className="text-xs font-mono">ENTRIES</span>
-                        </div>
-                        <span className="text-xs font-mono font-bold">
-                          {Object.keys(item.specifications).length} SPECS
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center group cursor-default">
-                        <div className="flex items-center gap-2">
-                          <PowerIcon active />
-                          <span className="text-xs font-mono">STATUS</span>
-                        </div>
-                        <span className={`text-xs font-mono font-bold ${item.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>
-                          {item.status?.toUpperCase() || "PUBLISHED"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      <button
-                        onClick={handleShare}
-                        className="flex-1 px-4 py-3 border border-technical-border font-mono text-[10px] font-bold uppercase hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                      >
-                        {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
-                        {copied ? "Copied!" : "Share blueprint"}
-                      </button>
-                      {item.datasheet && (
-                        <a
-                          href={item.datasheet}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 px-4 py-3 border border-technical-border font-mono text-[10px] font-bold uppercase hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                        >
-                          <FileText className="h-4 w-4" /> Datasheet <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <SpecsTable specs={item.specifications} />
                 </div>
 
-                {/* Hyperlocal Guides */}
-                <section className="pt-12 border-t border-slate-100">
-                  <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-2xl font-bold tracking-tight uppercase">Hyperlocal Knowledge</h2>
-                    <Link
-                      href={`/admin/guides/new?slug=${slug}`}
-                      className="text-xs font-mono font-bold text-blue-600 hover:underline"
+                <div className="space-y-4">
+                  {/* Quick Actions */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleShare}
+                      className="flex-1 btn-outline justify-center text-sm"
                     >
-                      CONTRIBUTE_LOCAL_GUIDE
-                    </Link>
+                      {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
+                      {copied ? "Copied!" : "Share"}
+                    </button>
+                    {item.datasheet && (
+                      <a
+                        href={item.datasheet}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 btn-outline justify-center text-sm"
+                      >
+                        <FileText className="h-4 w-4" /> Datasheet <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
+                </div>
+              </div>
 
-                  {guides.length > 0 ? (
-                    <div className="space-y-6">
-                      {guides.map((guide) => (
+              {/* Community Guides */}
+              <section className="pt-8 border-t border-gray-200">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-900">Community Guides</h2>
+                  <Link
+                    href={`/admin/guides/new?slug=${slug}`}
+                    className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    Write a Guide
+                  </Link>
+                </div>
+
+                {guides.length > 0 ? (
+                  <div className="space-y-4">
+                    {guides.map((guide) => (
+                      <Link key={guide.id} href={`/guides/${guide.id}`}>
                         <motion.div
-                          key={guide.id}
-                          whileHover={{ x: 5 }}
-                          className="technical-card p-8 group"
+                          whileHover={{ x: 3 }}
+                          className="card-flat p-6 hover:border-blue-200 transition-colors cursor-pointer"
                         >
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {guide.hyperlocalTags.map((tag) => (
-                              <div key={tag} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 text-white font-mono text-[9px] uppercase tracking-wider">
-                                <MapPin className="h-3 w-3 text-blue-400" />
-                                {tag}
-                              </div>
-                            ))}
-                          </div>
-                          <h3 className="text-xl font-bold mb-2 group-hover:text-blue-600 transition-colors uppercase">
+                          {guide.hyperlocalTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {guide.hyperlocalTags.map((tag) => (
+                                <span key={tag} className="badge badge-blue text-xs">
+                                  <MapPin className="h-3 w-3" />
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <h3 className="text-base font-semibold text-gray-900 mb-1 hover:text-blue-600 transition-colors">
                             {guide.title}
                           </h3>
-                          <p className="text-slate-500 text-sm mb-4">{guide.excerpt || guide.content.slice(0, 200)}</p>
+                          <p className="text-sm text-gray-500 line-clamp-2">
+                            {guide.excerpt || guide.content.slice(0, 200)}
+                          </p>
                           {guide.mediaUrls && guide.mediaUrls.length > 0 && (
-                            <div className="mb-4">
+                            <div className="mt-3">
                               <MediaGallery urls={guide.mediaUrls} />
                             </div>
                           )}
                           {guide.authorName && (
-                            <p className="text-[10px] font-mono text-slate-400 uppercase">
-                              By {guide.authorName}
-                            </p>
+                            <p className="text-xs text-gray-500 mt-2 font-medium">by {guide.authorName}</p>
                           )}
                         </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      title="NO_LOCAL_GUIDES"
-                      message="No hyperlocal guides yet. Be the first to contribute regional knowledge for this component!"
-                      actionLabel="Create Guide"
-                      actionHref={`/admin/guides/new?slug=${slug}`}
-                    />
-                  )}
-                </section>
-
-                {/* Related Components */}
-                {item.relatedSlugs && item.relatedSlugs.length > 0 && (
-                  <section className="pt-12 border-t border-slate-100">
-                    <h2 className="text-2xl font-bold tracking-tight uppercase mb-6">Related Components</h2>
-                    <div className="flex flex-wrap gap-3">
-                      {item.relatedSlugs.map((s) => (
-                        <Link
-                          key={s}
-                          href={`/wiki/${s}`}
-                          className="px-4 py-2 border border-slate-200 font-mono text-xs uppercase hover:border-blue-500 hover:text-blue-600 transition-all"
-                        >
-                          {s}
-                        </Link>
-                      ))}
-                    </div>
-                  </section>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No Guides Yet"
+                    message="Be the first to contribute a guide for this component!"
+                    actionLabel="Create Guide"
+                    actionHref={`/admin/guides/new?slug=${slug}`}
+                  />
                 )}
-              </div>
+              </section>
+
+              {/* Related Components */}
+              {item.relatedSlugs && item.relatedSlugs.length > 0 && (
+                <section className="pt-8 border-t border-gray-200">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Related Components</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {item.relatedSlugs.map((s) => (
+                      <Link
+                        key={s}
+                        href={`/wiki/${s}`}
+                        className="badge hover:bg-blue-50 hover:text-blue-600 transition-colors text-sm"
+                      >
+                        {s}
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
-          </>
+          </div>
         ) : null}
       </main>
+
+      <Footer />
     </div>
   );
 }

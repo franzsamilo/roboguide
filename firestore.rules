@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Admins config - only admins can read/write (checked via Admin SDK for writes)
+    match /admins/{doc} {
+      allow read, write: if false; // Managed only via API routes with Admin SDK
+    }
+
+    // Registry items - public read for published, authenticated write
+    match /registryItems/{doc} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null;
+    }
+
+    // Guides - public read for published, authenticated write
+    match /guides/{doc} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null;
+    }
+
+    // Projects - public read for published/featured, authenticated write
+    match /projects/{doc} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null;
+    }
+  }
+}

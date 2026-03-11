@@ -36,9 +36,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const icons = {
-    success: <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />,
-    error: <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />,
-    info: <Info className="h-4 w-4 text-blue-500 flex-shrink-0" />,
+    success: <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />,
+    error: <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />,
+    info: <Info className="h-4 w-4 text-blue-500 shrink-0" />,
   };
 
   const borders = {

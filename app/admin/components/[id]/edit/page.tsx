@@ -6,7 +6,8 @@ import Navbar from "@/components/ui/Navbar";
 import MediaUploader from "@/components/admin/MediaUploader";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
-import { getRegistryItemById, updateRegistryItem } from "@/lib/firebase/registryService";
+import { getRegistryItemById } from "@/lib/firebase/registryService";
+import { updateRegistryItem } from "@/lib/api/registry";
 import { CATEGORIES } from "@/lib/schemas";
 import { motion } from "framer-motion";
 import { ArrowLeft, Save, Plus, X, Loader2 } from "lucide-react";
@@ -29,6 +30,7 @@ export default function EditComponentPage() {
   const [tagInput, setTagInput] = useState("");
   const [specKey, setSpecKey] = useState("");
   const [specValue, setSpecValue] = useState("");
+  const [relatedInput, setRelatedInput] = useState("");
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/");
@@ -67,6 +69,14 @@ export default function EditComponentPage() {
     }
   };
 
+  const addRelated = () => {
+    const slug = relatedInput.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/(^-|-$)/g, "");
+    if (slug && !(form.relatedSlugs || []).includes(slug)) {
+      setForm((p) => ({ ...p, relatedSlugs: [...(p.relatedSlugs || []), slug] }));
+      setRelatedInput("");
+    }
+  };
+
   const handleSave = async () => {
     if (!form.name || !form.slug || !form.category) {
       toast("Name, slug, and category are required.", "error");
@@ -88,7 +98,7 @@ export default function EditComponentPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-grow max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
+      <main className="grow max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
         <Link href="/admin" className="flex items-center gap-2 mb-8 font-mono text-xs text-slate-500 hover:text-blue-500 transition-colors uppercase tracking-widest">
           <ArrowLeft className="h-4 w-4" /> Back to Admin
         </Link>
@@ -152,6 +162,34 @@ export default function EditComponentPage() {
                   <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Datasheet Link</label>
                   <input value={form.datasheet || ""} onChange={(e) => setForm((p) => ({ ...p, datasheet: e.target.value }))}
                     className="w-full p-3 border border-technical-border font-mono text-sm focus:border-blue-500 outline-none" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Pinout (URL or image link)</label>
+                <input value={form.pinout || ""} onChange={(e) => setForm((p) => ({ ...p, pinout: e.target.value }))}
+                  placeholder="https://... or image URL for pinout diagram"
+                  className="w-full p-3 border border-technical-border font-mono text-sm focus:border-blue-500 outline-none" />
+              </div>
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Related Components</label>
+                <div className="flex gap-2">
+                  <input value={relatedInput} onChange={(e) => setRelatedInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRelated())}
+                    placeholder="Add slug (e.g. esp32-wroom)"
+                    className="flex-1 p-3 border border-technical-border font-mono text-sm outline-none focus:border-blue-500" />
+                  <button type="button" onClick={addRelated} className="px-4 border border-technical-border hover:bg-slate-50">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {(form.relatedSlugs || []).map((slug) => (
+                    <span key={slug} className="flex items-center gap-1 px-2 py-1 bg-slate-100 font-mono text-[10px] border border-slate-200 uppercase">
+                      {slug}
+                      <button type="button" onClick={() => setForm((p) => ({ ...p, relatedSlugs: (p.relatedSlugs || []).filter((s) => s !== slug) }))}>
+                        <X className="h-3 w-3 text-slate-400 hover:text-red-500" />
+                      </button>
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>

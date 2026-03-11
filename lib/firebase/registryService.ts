@@ -37,7 +37,9 @@ export async function getRegistryItems(options?: {
     constraints.push(where("category", "==", options.category));
   }
 
-  if (options?.status) {
+  if (options?.status === "all") {
+    constraints.push(where("status", "in", ["draft", "published", "archived"]));
+  } else if (options?.status) {
     constraints.push(where("status", "==", options.status));
   } else {
     constraints.push(where("status", "==", "published"));

@@ -6,7 +6,7 @@ import Navbar from "@/components/ui/Navbar";
 import MediaUploader from "@/components/admin/MediaUploader";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
-import { addRegistryItem } from "@/lib/firebase/registryService";
+import { addRegistryItem } from "@/lib/api/registry";
 import { CATEGORIES } from "@/lib/schemas";
 import { motion } from "framer-motion";
 import { ArrowLeft, Save, Plus, X, Loader2 } from "lucide-react";
@@ -86,8 +86,8 @@ export default function NewComponentPage() {
     try {
       await addRegistryItem({
         ...form,
-        authorId: user.uid,
-        authorName: user.displayName || "Unknown",
+        authorId: user.id,
+        authorName: user.name || "Unknown",
       });
       toast(`"${form.name}" added to registry!`, "success");
       router.push("/admin");
@@ -101,7 +101,7 @@ export default function NewComponentPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-grow max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
+      <main className="grow max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
         <Link href="/admin" className="flex items-center gap-2 mb-8 font-mono text-xs text-slate-500 hover:text-blue-500 transition-colors uppercase tracking-widest">
           <ArrowLeft className="h-4 w-4" /> Back to Admin
         </Link>
