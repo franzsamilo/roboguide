@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/ui/Navbar";
 import MediaUploader from "@/components/admin/MediaUploader";
+import SingleFileUpload from "@/components/admin/SingleFileUpload";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { addRegistryItem } from "@/lib/api/registry";
+import { getRegistryItems } from "@/lib/firebase/registryService";
 import { CATEGORIES } from "@/lib/schemas";
+import type { RegistryItem } from "@/lib/schemas";
 import { motion } from "framer-motion";
 import { ArrowLeft, Save, Plus, X, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -36,7 +39,11 @@ export default function NewComponentPage() {
   const [tagInput, setTagInput] = useState("");
   const [specKey, setSpecKey] = useState("");
   const [specValue, setSpecValue] = useState("");
-  const [relatedInput, setRelatedInput] = useState("");
+  const [registryItems, setRegistryItems] = useState<RegistryItem[]>([]);
+
+  useEffect(() => {
+    getRegistryItems({ status: "published", pageSize: 200 }).then((r) => setRegistryItems(r.items));
+  }, []);
 
   if (authLoading) return null;
   if (!user) { router.push("/"); return null; }
@@ -70,11 +77,19 @@ export default function NewComponentPage() {
     }
   };
 
-  const addRelated = () => {
-    if (relatedInput.trim() && !form.relatedSlugs.includes(relatedInput.trim())) {
-      setForm((prev) => ({ ...prev, relatedSlugs: [...prev.relatedSlugs, relatedInput.trim()] }));
-      setRelatedInput("");
+  const addRelated = (slug: string) => {
+    if (slug && !form.relatedSlugs.includes(slug)) {
+      setForm((prev) => ({ ...prev, relatedSlugs: [...prev.relatedSlugs, slug] }));
     }
+  };
+
+  const randomSlug = () => {
+    const adjectives = ["smart", "micro", "tiny", "pro", "mini", "ultra", "mega", "nano", "core", "dual"];
+    const nouns = ["chip", "board", "module", "sensor", "unit", "device", "controller", "driver", "shield", "hat"];
+    const a = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const n = nouns[Math.floor(Math.random() * nouns.length)];
+    const num = Math.floor(Math.random() * 999) + 1;
+    setForm((prev) => ({ ...prev, slug: `${a}-${n}-${num}` }));
   };
 
   const handleSubmit = async () => {
@@ -127,12 +142,17 @@ export default function NewComponentPage() {
               </div>
               <div className="space-y-2">
                 <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Slug *</label>
-                <input
-                  value={form.slug}
-                  onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))}
-                  placeholder="esp32-wroom-32d"
-                  className="w-full p-3 border border-technical-border font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={form.slug}
+                    onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                    placeholder="esp32-wroom-32d"
+                    className="flex-1 p-3 border border-technical-border font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
+                  />
+                  <button type="button" onClick={randomSlug} className="px-4 border border-technical-border hover:bg-slate-50 font-mono text-xs">
+                    Random
+                  </button>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -173,21 +193,33 @@ export default function NewComponentPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Primary Image URL</label>
+                <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Primary Image</label>
+                <SingleFileUpload
+                  basePath={`registry/${form.slug || "temp"}`}
+                  value={form.image}
+                  onChange={(url) => setForm((prev) => ({ ...prev, image: url }))}
+                  accept="image"
+                />
                 <input
                   value={form.image}
                   onChange={(e) => setForm((prev) => ({ ...prev, image: e.target.value }))}
-                  placeholder="https://..."
-                  className="w-full p-3 border border-technical-border font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
+                  placeholder="Or paste image URL..."
+                  className="w-full p-3 border border-technical-border font-mono text-sm mt-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
                 />
               </div>
               <div className="space-y-2">
-                <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Datasheet Link</label>
+                <label className="font-mono text-[10px] font-bold uppercase text-slate-500">Datasheet</label>
+                <SingleFileUpload
+                  basePath={`registry/${form.slug || "temp"}/datasheets`}
+                  value={form.datasheet}
+                  onChange={(url) => setForm((prev) => ({ ...prev, datasheet: url }))}
+                  accept="pdf"
+                />
                 <input
                   value={form.datasheet}
                   onChange={(e) => setForm((prev) => ({ ...prev, datasheet: e.target.value }))}
-                  placeholder="https://...pdf"
-                  className="w-full p-3 border border-technical-border font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
+                  placeholder="Or paste datasheet URL..."
+                  className="w-full p-3 border border-technical-border font-mono text-sm mt-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
                 />
               </div>
             </div>
@@ -273,22 +305,28 @@ export default function NewComponentPage() {
           {/* Related Components */}
           <div className="technical-card p-6 space-y-4">
             <h2 className="font-mono text-xs font-bold uppercase text-slate-500 tracking-widest">Related Components</h2>
-            <div className="flex gap-2">
-              <input
-                value={relatedInput}
-                onChange={(e) => setRelatedInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRelated())}
-                placeholder="Related component slug..."
-                className="flex-1 p-3 border border-technical-border font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-              />
-              <button onClick={addRelated} className="px-4 border border-technical-border hover:bg-slate-50 transition-all">
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
+            <p className="text-xs text-slate-500">Select from existing registry components to link.</p>
+            <select
+              onChange={(e) => {
+                const slug = e.target.value;
+                if (slug) addRelated(slug);
+                e.target.value = "";
+              }}
+              className="w-full p-3 border border-technical-border font-mono text-sm bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
+            >
+              <option value="">-- Select component to add --</option>
+              {registryItems
+                .filter((item) => item.slug !== form.slug && !form.relatedSlugs.includes(item.slug))
+                .map((item) => (
+                  <option key={item.id} value={item.slug}>
+                    {item.name} ({item.slug})
+                  </option>
+                ))}
+            </select>
             <div className="flex flex-wrap gap-2">
               {form.relatedSlugs.map((s) => (
                 <span key={s} className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 text-slate-600 font-mono text-[10px] border border-slate-200">
-                  {s}
+                  {registryItems.find((i) => i.slug === s)?.name || s}
                   <button onClick={() => setForm((prev) => ({ ...prev, relatedSlugs: prev.relatedSlugs.filter((r) => r !== s) }))}>
                     <X className="h-3 w-3 text-slate-400 hover:text-red-500" />
                   </button>

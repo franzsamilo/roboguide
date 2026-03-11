@@ -79,6 +79,16 @@ export async function getProjectById(id: string): Promise<Project | null> {
   return { id: snapshot.id, ...snapshot.data() } as Project;
 }
 
+export async function getAllProjects(): Promise<Project[]> {
+  const q = query(
+    collection(db, COLLECTION),
+    orderBy("createdAt", "desc"),
+    limit(500)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Project[];
+}
+
 export async function getFeaturedProjects(count: number = 3): Promise<Project[]> {
   const q = query(
     collection(db, COLLECTION),

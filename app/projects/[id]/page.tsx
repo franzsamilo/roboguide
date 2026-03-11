@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import MediaGallery from "@/components/registry/MediaGallery";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { motion } from "framer-motion";
-import { ArrowLeft, Code, ExternalLink, Copy, Check, User } from "lucide-react";
+import { ArrowLeft, Code, ExternalLink, Copy, Check, User, Pencil } from "lucide-react";
 import { isYouTubeUrl, getYouTubeVideoId } from "@/lib/media-utils";
 import { getProjectById } from "@/lib/firebase/projectService";
 import { incrementProjectViewCount } from "@/lib/api/projects";
@@ -18,6 +19,7 @@ import Link from "next/link";
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,12 +84,21 @@ export default function ProjectDetailPage() {
               <h1 className="text-4xl md:text-5xl font-bold tracking-tighter uppercase mb-4 text-gray-900">{project.title}</h1>
               <p className="text-slate-600 text-lg leading-relaxed font-sans max-w-3xl">{project.description}</p>
 
-              <div className="flex items-center gap-6 mt-4">
+              <div className="flex items-center gap-4 mt-4 flex-wrap">
                 {project.authorName && (
                   <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
                     <User className="h-4 w-4 text-slate-600" />
                     <span className="text-sm font-medium text-gray-800">{project.authorName}</span>
                   </div>
+                )}
+                {user?.id === project.authorId && (
+                  <Link
+                    href={`/projects/${project.id}/edit`}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition-colors text-sm"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit Project
+                  </Link>
                 )}
               </div>
 

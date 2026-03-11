@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import MediaUploader from "@/components/admin/MediaUploader";
+import SingleFileUpload from "@/components/admin/SingleFileUpload";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { addRegistryItem } from "@/lib/api/registry";
+import { getRegistryItems } from "@/lib/firebase/registryService";
 import { addProject } from "@/lib/api/projects";
 import { CATEGORIES } from "@/lib/schemas";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,12 +31,14 @@ function SubmitPageInner() {
   const [compForm, setCompForm] = useState({
     name: "", slug: "", category: "", description: "",
     tags: [] as string[], specifications: {} as Record<string, string>,
-    mediaUrls: [] as string[], image: "",
+    mediaUrls: [] as string[], image: "", datasheet: "",
+    relatedSlugs: [] as string[],
   });
   const [slugConflict, setSlugConflict] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [specKey, setSpecKey] = useState("");
   const [specValue, setSpecValue] = useState("");
+  const [registryItems, setRegistryItems] = useState<{ id?: string; slug: string; name: string }[]>([]);
 
   // Project form
   const [projForm, setProjForm] = useState({
@@ -45,6 +49,14 @@ function SubmitPageInner() {
   const [projTagInput, setProjTagInput] = useState("");
   const [partName, setPartName] = useState("");
   const [partQty, setPartQty] = useState(1);
+
+  useEffect(() => {
+    if (submitType === "component") {
+      getRegistryItems({ status: "published", pageSize: 100 }).then((r) =>
+        setRegistryItems(r.items.map((i) => ({ id: i.id, slug: i.slug, name: i.name })))
+      );
+    }
+  }, [submitType]);
 
   if (authLoading) return null;
 
@@ -68,6 +80,15 @@ function SubmitPageInner() {
   const autoSlug = (name: string) =>
     name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+  const randomSlug = () => {
+    const adjectives = ["smart", "micro", "tiny", "pro", "mini", "ultra", "mega", "nano", "core", "dual"];
+    const nouns = ["chip", "board", "module", "sensor", "unit", "device", "controller", "driver", "shield", "hat"];
+    const a = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const n = nouns[Math.floor(Math.random() * nouns.length)];
+    const num = Math.floor(Math.random() * 999) + 1;
+    return `${a}-${n}-${num}`;
+  };
+
   const totalSteps = 3;
 
   const handleComponentSubmit = async () => {
@@ -81,7 +102,7 @@ function SubmitPageInner() {
         status: "published",
         authorId: user.id,
         authorName: user.name || "Unknown",
-        relatedSlugs: [],
+        relatedSlugs: compForm.relatedSlugs || [],
       });
       toast("Component added to registry!", "success");
       setStep(4);
@@ -207,12 +228,22 @@ function SubmitPageInner() {
               </div>
               <div>
                 <label className="form-label">URL slug *</label>
-                <input
-                  value={compForm.slug || autoSlug(compForm.name)}
-                  onChange={(e) => setCompForm((p) => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/(^-|-$)/g, "") }))}
-                  placeholder="e.g. esp32-wroom-32"
-                  className={`form-input font-mono ${slugConflict ? "border-amber-500 ring-1 ring-amber-500" : ""}`}
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={compForm.slug || autoSlug(compForm.name)}
+                    onChange={(e) => setCompForm((p) => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/(^-|-$)/g, "") }))}
+                    placeholder="e.g. esp32-wroom-32"
+                    className={`form-input font-mono flex-1 ${slugConflict ? "border-amber-500 ring-1 ring-amber-500" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCompForm((p) => ({ ...p, slug: randomSlug() }))}
+                    className="btn-outline px-4 shrink-0 font-mono text-xs"
+                    title="Generate random slug"
+                  >
+                    Random
+                  </button>
+                </div>
                 <p className="text-xs text-gray-500 mt-1">Must be unique. Used in URLs like /wiki/your-slug</p>
                 {slugConflict && <p className="text-xs text-amber-600 mt-1">A unique slug was suggested above. Edit if needed, then submit again.</p>}
               </div>
@@ -279,6 +310,68 @@ function SubmitPageInner() {
 
           {submitType === "component" && step === 3 && (
             <motion.div key="comp3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+              <div>
+                <label className="form-label">Main Image</label>
+                <p className="text-xs text-gray-500 mb-2">Upload the primary image for this component.</p>
+                <SingleFileUpload
+                  basePath={`submissions/${compForm.slug || "temp"}`}
+                  value={compForm.image}
+                  onChange={(url) => setCompForm((p) => ({ ...p, image: url }))}
+                  accept="image"
+                />
+                <input
+                  value={compForm.image}
+                  onChange={(e) => setCompForm((p) => ({ ...p, image: e.target.value }))}
+                  placeholder="Or paste image URL..."
+                  className="form-input mt-2"
+                />
+              </div>
+              <div>
+                <label className="form-label">Datasheet (PDF)</label>
+                <SingleFileUpload
+                  basePath={`submissions/${compForm.slug || "temp"}/datasheets`}
+                  value={compForm.datasheet}
+                  onChange={(url) => setCompForm((p) => ({ ...p, datasheet: url }))}
+                  accept="pdf"
+                />
+                <input
+                  value={compForm.datasheet}
+                  onChange={(e) => setCompForm((p) => ({ ...p, datasheet: e.target.value }))}
+                  placeholder="Or paste datasheet URL..."
+                  className="form-input mt-2"
+                />
+              </div>
+              <div>
+                <label className="form-label">Related Components</label>
+                <p className="text-xs text-gray-500 mb-2">Link to other components in the registry.</p>
+                <select
+                  onChange={(e) => {
+                    const slug = e.target.value;
+                    if (slug && !compForm.relatedSlugs.includes(slug)) {
+                      setCompForm((p) => ({ ...p, relatedSlugs: [...p.relatedSlugs, slug] }));
+                    }
+                    e.target.value = "";
+                  }}
+                  className="form-input"
+                >
+                  <option value="">-- Select component --</option>
+                  {registryItems
+                    .filter((i) => !compForm.relatedSlugs.includes(i.slug))
+                    .map((i) => (
+                      <option key={i.slug} value={i.slug}>{i.name} ({i.slug})</option>
+                    ))}
+                </select>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {compForm.relatedSlugs.map((s) => (
+                    <span key={s} className="badge flex items-center gap-1">
+                      {registryItems.find((r) => r.slug === s)?.name || s}
+                      <button onClick={() => setCompForm((p) => ({ ...p, relatedSlugs: p.relatedSlugs.filter((r) => r !== s) }))}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
               <MediaUploader basePath={`submissions/${compForm.slug || "temp"}`} existingUrls={compForm.mediaUrls}
                 onChange={(urls) => setCompForm((p) => ({ ...p, mediaUrls: urls }))} />
               <div className="card-flat p-8 text-center bg-gray-50">
@@ -398,6 +491,25 @@ function SubmitPageInner() {
           {submitType === "project" && step === 3 && (
             <motion.div key="proj3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
               <div className="space-y-3">
+                <label className="form-label">Cover Image</label>
+                <p className="text-xs text-gray-500 mb-2">Upload an image or add a YouTube URL. The first item will be used as the cover.</p>
+                <MediaUploader
+                  basePath={`projects/${projForm.title ? projForm.title.toLowerCase().replace(/\s+/g, "-") : "temp"}`}
+                  existingUrls={projForm.coverImage ? [projForm.coverImage] : []}
+                  onChange={(urls) => setProjForm((p) => ({ ...p, coverImage: urls[0] || "" }))}
+                  maxFiles={1}
+                />
+              </div>
+              <div className="space-y-3">
+                <label className="form-label">Media Gallery</label>
+                <p className="text-xs text-gray-500 mb-2">Additional images and videos for your project.</p>
+                <MediaUploader
+                  basePath={`projects/${projForm.title ? projForm.title.toLowerCase().replace(/\s+/g, "-") : "temp"}`}
+                  existingUrls={projForm.mediaUrls.filter((u) => u !== projForm.coverImage)}
+                  onChange={(urls) => setProjForm((p) => ({ ...p, mediaUrls: urls }))}
+                />
+              </div>
+              <div className="space-y-3">
                 <label className="form-label">Tags</label>
                 <div className="flex gap-2">
                   <input value={projTagInput} onChange={(e) => setProjTagInput(e.target.value)}
@@ -414,29 +526,54 @@ function SubmitPageInner() {
                   ))}
                 </div>
               </div>
-              <MediaUploader basePath={`projects/${projForm.title ? projForm.title.toLowerCase().replace(/\s+/g, "-") : "temp"}`} existingUrls={projForm.mediaUrls}
-                onChange={(urls) => setProjForm((p) => ({ ...p, mediaUrls: urls, coverImage: p.coverImage || urls[0] || "" }))} />
             </motion.div>
           )}
 
           {/* Success State */}
           {step === 4 && (
-            <motion.div key="success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="card-flat p-12 text-center">
-              <CheckCircle2 className="h-16 w-16 text-emerald-500 mx-auto mb-6" />
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              className="card-flat p-12 text-center border-2 border-emerald-200 bg-emerald-50/30"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", damping: 12 }}
+                className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-emerald-100 mb-6"
+              >
+                <CheckCircle2 className="h-14 w-14 text-emerald-600" />
+              </motion.div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 {submitType === "component" ? "Component Submitted!" : "Project Published!"}
               </h2>
-              <p className="text-gray-500 text-sm mb-8">
-                {submitType === "component" ? "Your component is under review and will appear soon." : "Your project is now live for the community to see!"}
+              <p className="text-gray-600 text-sm mb-2 max-w-md mx-auto">
+                {submitType === "component"
+                  ? "Your component has been added to the registry and is now visible to the community."
+                  : "Your project is now live! Thank you for sharing with the community."}
               </p>
-              <div className="flex justify-center gap-3">
-                <button onClick={() => router.push(submitType === "component" ? "/wiki" : "/projects")}
-                  className="btn-primary">
+              <p className="text-emerald-600 text-sm font-medium mb-8">Success!</p>
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <button
+                  onClick={() => router.push(submitType === "component" ? "/wiki" : "/projects")}
+                  className="btn-primary"
+                >
                   {submitType === "component" ? "Browse Wiki" : "View Projects"}
                 </button>
-                <button onClick={() => { setStep(1); setCompForm({ name: "", slug: "", category: "", description: "", tags: [], specifications: {}, mediaUrls: [], image: "" }); setProjForm({ title: "", description: "", content: "", code: "", codeLanguage: "cpp", tags: [], mediaUrls: [], coverImage: "", parts: [] }); }}
-                  className="btn-outline">
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setCompForm({ name: "", slug: "", category: "", description: "", tags: [], specifications: {}, mediaUrls: [], image: "", datasheet: "", relatedSlugs: [] });
+                    setProjForm({ title: "", description: "", content: "", code: "", codeLanguage: "cpp", tags: [], mediaUrls: [], coverImage: "", parts: [] });
+                  }}
+                  className="btn-outline"
+                >
                   Submit Another
+                </button>
+                <button onClick={() => router.push("/profile")} className="btn-outline">
+                  View My Profile
                 </button>
               </div>
             </motion.div>

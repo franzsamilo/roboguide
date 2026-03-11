@@ -5,16 +5,20 @@ import { getAuthenticatedUserOrNull } from "@/lib/auth-utils";
 const FILE_LIMITS = {
   maxImageSize: 5 * 1024 * 1024,
   maxVideoSize: 50 * 1024 * 1024,
+  maxPdfSize: 10 * 1024 * 1024,
   allowedImageTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
   allowedVideoTypes: ["video/mp4", "video/webm"],
+  allowedPdfTypes: ["application/pdf"],
 };
 
 function validateFile(file: File): string | null {
   const isImage = FILE_LIMITS.allowedImageTypes.includes(file.type);
   const isVideo = FILE_LIMITS.allowedVideoTypes.includes(file.type);
-  if (!isImage && !isVideo) return `Unsupported type: ${file.type}`;
+  const isPdf = FILE_LIMITS.allowedPdfTypes.includes(file.type);
+  if (!isImage && !isVideo && !isPdf) return `Unsupported type: ${file.type}`;
   if (isImage && file.size > FILE_LIMITS.maxImageSize) return "Image too large";
   if (isVideo && file.size > FILE_LIMITS.maxVideoSize) return "Video too large";
+  if (isPdf && file.size > FILE_LIMITS.maxPdfSize) return "PDF too large (max 10MB)";
   return null;
 }
 

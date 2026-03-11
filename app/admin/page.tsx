@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Database, FileText, Trash2, Edit3, Plus, Eye, BookOpen,
+  Database, FileText, Trash2, Edit3, Plus, Eye, BookOpen, FolderOpen,
   Cpu, ChevronRight, Users, Activity, UserPlus, UserMinus, Pencil, Send
 } from "lucide-react";
 import {
@@ -18,12 +18,14 @@ import {
 import { deleteRegistryItem, updateRegistryItem } from "@/lib/api/registry";
 import { getAllGuides } from "@/lib/firebase/guideService";
 import { deleteGuide } from "@/lib/api/guides";
+import { getAllProjects } from "@/lib/firebase/projectService";
+import { deleteProject } from "@/lib/api/projects";
 import { PageSkeleton } from "@/components/ui/Skeletons";
 import EmptyState from "@/components/ui/EmptyState";
-import type { RegistryItem, Guide, Category } from "@/lib/schemas";
+import type { RegistryItem, Guide, Category, Project } from "@/lib/schemas";
 import Link from "next/link";
 
-type Tab = "components" | "guides" | "admins";
+type Tab = "components" | "guides" | "projects" | "admins";
 
 export default function AdminPage() {
   const { user, loading: authLoading, isAdmin } = useAuth();
@@ -33,6 +35,7 @@ export default function AdminPage() {
 
   const [items, setItems] = useState<RegistryItem[]>([]);
   const [guides, setGuides] = useState<Guide[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [admins, setAdmins] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,14 +56,16 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [itemsResult, guidesResult, catsResult] = await Promise.all([
+      const [itemsResult, guidesResult, catsResult, projectsResult] = await Promise.all([
         getRegistryItems({ status: "all" }),
         getAllGuides(),
         getCategoriesWithCounts(),
+        getAllProjects(),
       ]);
       setItems(itemsResult.items);
       setGuides(guidesResult);
       setCategories(catsResult);
+      setProjects(projectsResult);
     } catch (err) {
       toast("Failed to load data", "error");
     } finally {
@@ -160,6 +165,24 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteProject = async (project: Project) => {
+    const confirmed = await confirm({
+      title: "Delete Project",
+      message: `Delete project "${project.title}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed || !project.id) return;
+
+    try {
+      await deleteProject(project.id);
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      toast(`"${project.title}" deleted`, "success");
+    } catch (err) {
+      toast("Failed to delete project", "error");
+    }
+  };
+
   const handleDeleteGuide = async (guide: Guide) => {
     const confirmed = await confirm({
       title: "Delete Guide",
@@ -183,6 +206,7 @@ export default function AdminPage() {
 
   const totalComponents = items.length;
   const totalGuides = guides.length;
+  const totalProjects = projects.length;
   const publishedComponents = items.filter((i) => i.status === "published").length;
 
   return (
@@ -220,11 +244,12 @@ export default function AdminPage() {
         </header>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           {[
             { label: "Components", value: totalComponents, icon: Database },
             { label: "Published", value: publishedComponents, icon: Eye },
             { label: "Guides", value: totalGuides, icon: BookOpen },
+            { label: "Projects", value: totalProjects, icon: FolderOpen },
             { label: "Categories", value: categories.filter((c) => c.count > 0).length, icon: Activity },
           ].map(({ label, value, icon: Icon }) => (
             <div key={label} className="technical-card p-6">
@@ -243,6 +268,7 @@ export default function AdminPage() {
             [
               ["components", "Components", Database, totalComponents],
               ["guides", "Guides", BookOpen, totalGuides],
+              ["projects", "Projects", FolderOpen, totalProjects],
               ["admins", "Admins", Users, admins.length],
             ] as const
           ).map(([tab, label, Icon, count]) => (
@@ -383,6 +409,64 @@ export default function AdminPage() {
                             <Trash2 className="h-4 w-4 text-red-400" />
                           </button>
                         </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === "projects" && (
+              <motion.div key="projects" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {projects.length === 0 ? (
+                  <EmptyState
+                    title="NO_PROJECTS"
+                    message="No projects posted yet."
+                    actionLabel="View Projects"
+                    actionHref="/projects"
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {projects.map((project) => (
+                      <motion.div
+                        key={project.id}
+                        layout
+                        className="technical-card p-4 flex items-center gap-4 hover:border-blue-500 transition-colors group"
+                      >
+                        <div className="w-12 h-12 bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                          {project.coverImage ? (
+                            <img src={project.coverImage} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <FolderOpen className="h-5 w-5 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <h3 className="text-sm font-bold truncate">{project.title}</h3>
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 uppercase ${
+                              project.status === "featured" ? "bg-amber-100 text-amber-700" :
+                              project.status === "published" ? "bg-emerald-100 text-emerald-700" :
+                              "bg-slate-100 text-slate-500"
+                            }`}>
+                              {project.status}
+                            </span>
+                          </div>
+                          <p className="text-[10px] font-mono text-slate-400 uppercase">
+                            {project.authorName || "Unknown"} • {project.viewCount || 0} views
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Link href={`/projects/${project.id}`} className="p-2 hover:bg-slate-50 transition-all" title="View">
+                            <Eye className="h-4 w-4 text-slate-400" />
+                          </Link>
+                          <Link href={`/projects/${project.id}/edit`} className="p-2 hover:bg-slate-50 transition-all" title="Edit">
+                            <Pencil className="h-4 w-4 text-slate-400" />
+                          </Link>
+                          <button onClick={() => handleDeleteProject(project)} className="p-2 hover:bg-red-50 transition-all" title="Delete">
+                            <Trash2 className="h-4 w-4 text-red-400" />
+                          </button>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
                       </motion.div>
                     ))}
                   </div>
