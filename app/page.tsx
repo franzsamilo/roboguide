@@ -151,6 +151,20 @@ export default function Home() {
                   View Projects
                 </Link>
               </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.45 }}
+                className="mt-6"
+              >
+                <Link
+                  href="/start"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  New here? Start here <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </motion.div>
             </div>
           </div>
         </section>
