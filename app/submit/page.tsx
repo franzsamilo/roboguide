@@ -6,6 +6,7 @@ import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import MediaUploader from "@/components/admin/MediaUploader";
 import SingleFileUpload from "@/components/admin/SingleFileUpload";
+import PartPicker from "@/components/submit/PartPicker";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { addRegistryItem } from "@/lib/api/registry";
@@ -60,7 +61,7 @@ function SubmitPageInner() {
   const [tagInput, setTagInput] = useState("");
   const [specKey, setSpecKey] = useState("");
   const [specValue, setSpecValue] = useState("");
-  const [registryItems, setRegistryItems] = useState<{ id?: string; slug: string; name: string }[]>([]);
+  const [registryItems, setRegistryItems] = useState<{ id?: string; slug: string; name: string; category?: string; image?: string }[]>([]);
 
   // Project form
   const [projForm, setProjForm] = useState({
@@ -84,11 +85,10 @@ function SubmitPageInner() {
   const [guideTagInput, setGuideTagInput] = useState("");
 
   useEffect(() => {
-    if (submitType === "component" || submitType === "guide") {
-      getRegistryItems({ status: "published", pageSize: 200 }).then((r) =>
-        setRegistryItems(r.items.map((i) => ({ id: i.id, slug: i.slug, name: i.name })))
-      );
-    }
+    // Registry items are used by all three flows: component (related), project (parts), guide (linked)
+    getRegistryItems({ status: "published", pageSize: 500 }).then((r) =>
+      setRegistryItems(r.items.map((i) => ({ id: i.id, slug: i.slug, name: i.name, category: i.category, image: i.image })))
+    ).catch(() => {});
   }, [submitType]);
 
   // ─── Draft Autosave: restore on mount ───
@@ -650,50 +650,67 @@ function SubmitPageInner() {
             <motion.div key="proj2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
               <div className="space-y-3">
                 <label className="form-label">Parts List</label>
-                <p className="text-xs text-gray-500 mb-3">Add components and materials used in your project. Enter part name, set quantity, then click Add.</p>
-                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-[10px] font-mono text-gray-500 uppercase block mb-1">Part name</label>
-                    <input
-                      value={partName}
-                      onChange={(e) => setPartName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          if (partName.trim()) {
-                            setProjForm((p) => ({ ...p, parts: [...p.parts, { name: partName.trim(), quantity: partQty }] }));
-                            setPartName("");
-                            setPartQty(1);
+                <p className="text-xs text-gray-500 mb-3">Search components from the wiki to add linked parts, or type a custom part name below.</p>
+                <PartPicker
+                  items={registryItems}
+                  excludeSlugs={projForm.parts.map((p) => p.registrySlug).filter(Boolean) as string[]}
+                  onPick={(item) => {
+                    setProjForm((p) => ({
+                      ...p,
+                      parts: [...p.parts, { name: item.name, quantity: 1, registrySlug: item.slug }],
+                    }));
+                  }}
+                  placeholder="Search wiki components to add..."
+                />
+                <div className="mt-3 pt-3 border-t border-dashed border-slate-200">
+                  <p className="text-[10px] font-mono text-gray-500 uppercase mb-2">Or add a custom part</p>
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                    <div className="flex-1 min-w-0">
+                      <label htmlFor="proj-part-name" className="text-[10px] font-mono text-gray-500 uppercase block mb-1">Part name</label>
+                      <input
+                        id="proj-part-name"
+                        value={partName}
+                        onChange={(e) => setPartName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (partName.trim()) {
+                              setProjForm((p) => ({ ...p, parts: [...p.parts, { name: partName.trim(), quantity: partQty }] }));
+                              setPartName("");
+                              setPartQty(1);
+                            }
                           }
+                        }}
+                        placeholder="e.g. 10kΩ resistor"
+                        className="form-input w-full"
+                      />
+                    </div>
+                    <div className="w-24 shrink-0">
+                      <label htmlFor="proj-part-qty" className="text-[10px] font-mono text-gray-500 uppercase block mb-1">Qty</label>
+                      <input
+                        id="proj-part-qty"
+                        type="number"
+                        value={partQty}
+                        onChange={(e) => setPartQty(Math.max(1, parseInt(e.target.value) || 1))}
+                        min={1}
+                        className="form-input w-full text-center"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (partName.trim()) {
+                          setProjForm((p) => ({ ...p, parts: [...p.parts, { name: partName.trim(), quantity: partQty }] }));
+                          setPartName("");
+                          setPartQty(1);
                         }
                       }}
-                      placeholder="e.g. ESP32-WROOM-32"
-                      className="form-input w-full"
-                    />
+                      disabled={!partName.trim()}
+                      className="btn-outline px-4 py-2.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="h-4 w-4 inline mr-1" /> Add
+                    </button>
                   </div>
-                  <div className="w-24 shrink-0">
-                    <label className="text-[10px] font-mono text-gray-500 uppercase block mb-1">Qty</label>
-                    <input
-                      type="number"
-                      value={partQty}
-                      onChange={(e) => setPartQty(Math.max(1, parseInt(e.target.value) || 1))}
-                      min={1}
-                      className="form-input w-full text-center"
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (partName.trim()) {
-                        setProjForm((p) => ({ ...p, parts: [...p.parts, { name: partName.trim(), quantity: partQty }] }));
-                        setPartName("");
-                        setPartQty(1);
-                      }
-                    }}
-                    disabled={!partName.trim()}
-                    className="btn-outline px-4 py-2.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="h-4 w-4 inline mr-1" /> Add
-                  </button>
                 </div>
                 {projForm.parts.length > 0 && (
                   <div className="card-flat divide-y divide-gray-100 overflow-hidden mt-4">
@@ -703,14 +720,34 @@ function SubmitPageInner() {
                     </div>
                     {projForm.parts.map((part, i) => (
                       <div key={i} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50/50">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium text-gray-800">{part.name}</span>
-                          <span className="text-sm text-gray-500 ml-2">× {part.quantity}</span>
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-sm font-medium text-gray-800 truncate">{part.name}</span>
+                            {part.registrySlug && (
+                              <span className="badge badge-blue text-[10px] shrink-0" title="Linked to wiki">linked</span>
+                            )}
+                          </div>
+                          <input
+                            type="number"
+                            value={part.quantity}
+                            onChange={(e) => {
+                              const qty = Math.max(1, parseInt(e.target.value) || 1);
+                              setProjForm((p) => ({
+                                ...p,
+                                parts: p.parts.map((pp, j) => (j === i ? { ...pp, quantity: qty } : pp)),
+                              }));
+                            }}
+                            min={1}
+                            className="w-16 text-center border border-slate-200 rounded px-2 py-1 text-sm"
+                            aria-label={`Quantity for ${part.name}`}
+                          />
                         </div>
                         <button
+                          type="button"
                           onClick={() => setProjForm((p) => ({ ...p, parts: p.parts.filter((_, j) => j !== i) }))}
                           className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                           title="Remove"
+                          aria-label={`Remove ${part.name}`}
                         >
                           <X className="h-4 w-4" />
                         </button>

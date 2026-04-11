@@ -100,6 +100,26 @@ export async function getFeaturedProjects(count: number = 3): Promise<Project[]>
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Project[];
 }
 
+// Reverse lookup: projects that use a given component (by registrySlug).
+// Firestore can't query into nested array-of-objects directly, so we fetch
+// a bounded batch of published projects and filter client-side.
+export async function getProjectsUsingComponent(
+  registrySlug: string,
+  max: number = 12
+): Promise<Project[]> {
+  const q = query(
+    collection(db, COLLECTION),
+    where("status", "in", ["published", "featured"]),
+    orderBy("createdAt", "desc"),
+    limit(200)
+  );
+  const snapshot = await getDocs(q);
+  const all = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Project[];
+  return all
+    .filter((p) => p.parts?.some((part) => part.registrySlug === registrySlug))
+    .slice(0, max);
+}
+
 // ─── Write Operations ───
 
 export async function addProject(

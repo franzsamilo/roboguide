@@ -12,10 +12,12 @@ import { MapPin, Share2, ArrowLeft, ExternalLink, FileText, Copy, Check, Eye, Ta
 import { getRegistryItemBySlug } from "@/lib/firebase/registryService";
 import { incrementViewCount } from "@/lib/api/registry";
 import { getGuidesForItem } from "@/lib/firebase/guideService";
+import { getProjectsUsingComponent } from "@/lib/firebase/projectService";
 import { DetailSkeleton } from "@/components/ui/Skeletons";
 import ErrorState from "@/components/ui/ErrorState";
 import EmptyState from "@/components/ui/EmptyState";
-import type { RegistryItem, Guide } from "@/lib/schemas";
+import type { RegistryItem, Guide, Project } from "@/lib/schemas";
+import { FolderOpen } from "lucide-react";
 import Link from "next/link";
 
 export default function RegistryDetailPage() {
@@ -23,6 +25,7 @@ export default function RegistryDetailPage() {
   const router = useRouter();
   const [item, setItem] = useState<RegistryItem | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
+  const [projectsUsing, setProjectsUsing] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -33,9 +36,10 @@ export default function RegistryDetailPage() {
       setLoading(true);
       setError(null);
       try {
-        const [itemData, guidesData] = await Promise.all([
+        const [itemData, guidesData, projectsData] = await Promise.all([
           getRegistryItemBySlug(slug as string),
           getGuidesForItem(slug as string),
+          getProjectsUsingComponent(slug as string, 8),
         ]);
         if (!itemData) {
           setError("Component not found in registry.");
@@ -43,6 +47,7 @@ export default function RegistryDetailPage() {
         }
         setItem(itemData);
         setGuides(guidesData);
+        setProjectsUsing(projectsData);
         if (itemData.id) {
           incrementViewCount(itemData.id).catch(() => {});
         }
@@ -263,6 +268,46 @@ export default function RegistryDetailPage() {
                   />
                 )}
               </section>
+
+              {/* Projects Using This Component */}
+              {projectsUsing.length > 0 && (
+                <section className="pt-8 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-gray-900">Projects Using This</h2>
+                    <Link
+                      href="/projects"
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      See all
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {projectsUsing.map((project) => (
+                      <Link key={project.id} href={`/projects/${project.id}`}>
+                        <motion.div
+                          whileHover={{ y: -2 }}
+                          className="card-flat p-4 hover:border-blue-200 transition-colors h-full flex gap-3"
+                        >
+                          <div className="w-16 h-16 bg-gray-50 rounded border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center">
+                            {project.coverImage ? (
+                              <img src={project.coverImage} alt={project.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <FolderOpen className="h-6 w-6 text-gray-300" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-blue-600 transition-colors">{project.title}</h3>
+                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{project.description}</p>
+                            {project.authorName && (
+                              <p className="text-[10px] text-gray-400 mt-1">by {project.authorName}</p>
+                            )}
+                          </div>
+                        </motion.div>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* Related Components */}
               {item.relatedSlugs && item.relatedSlugs.length > 0 && (
