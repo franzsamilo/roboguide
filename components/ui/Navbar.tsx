@@ -104,6 +104,7 @@ export default function Navbar() {
                   onClick={() => signOut()}
                   className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all"
                   title="Sign Out"
+                  aria-label="Sign out"
                 >
                   <LogOut className="h-5 w-5" />
                 </button>
@@ -122,6 +123,8 @@ export default function Navbar() {
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-all"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>

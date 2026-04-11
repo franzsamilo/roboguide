@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import AdaptiveSidebar from "@/components/wiki/AdaptiveSidebar";
@@ -16,10 +16,22 @@ import ErrorState from "@/components/ui/ErrorState";
 
 function WikiPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const initialCategory = searchParams.get("category");
+  const initialSearch = searchParams.get("q") ?? "";
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [activeCategory, setActiveCategory] = useState<string | null>(initialCategory);
+
+  // Sync filter/search to URL (shareable, reload-safe)
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeCategory) params.set("category", activeCategory);
+    if (search) params.set("q", search);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [activeCategory, search, pathname, router]);
   const [items, setItems] = useState<RegistryItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,12 +92,15 @@ function WikiPageInner() {
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-4 w-4 text-gray-400" />
               </div>
+              <label htmlFor="wiki-search" className="sr-only">Search components</label>
               <input
+                id="wiki-search"
                 type="text"
                 placeholder="Search components, tags..."
                 className="form-input pl-10"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search components"
               />
             </div>
           </div>

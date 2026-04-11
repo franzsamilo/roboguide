@@ -312,7 +312,7 @@ export default function AdminPage() {
                       >
                         <div className="w-12 h-12 bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
                           {item.image ? (
-                            <img src={item.image} alt="" className="w-full h-full object-contain p-1 mix-blend-multiply" />
+                            <img src={item.image} alt={item.name} className="w-full h-full object-contain p-1 mix-blend-multiply" />
                           ) : (
                             <Cpu className="h-5 w-5 text-slate-300" />
                           )}
@@ -435,7 +435,7 @@ export default function AdminPage() {
                       >
                         <div className="w-12 h-12 bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
                           {project.coverImage ? (
-                            <img src={project.coverImage} alt="" className="w-full h-full object-cover" />
+                            <img src={project.coverImage} alt={project.title} className="w-full h-full object-cover" />
                           ) : (
                             <FolderOpen className="h-5 w-5 text-slate-300" />
                           )}

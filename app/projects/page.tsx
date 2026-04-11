@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import { motion } from "framer-motion";
@@ -12,11 +13,21 @@ import ErrorState from "@/components/ui/ErrorState";
 import type { Project } from "@/lib/schemas";
 import Link from "next/link";
 
-export default function ProjectsPage() {
+function ProjectsPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [search, pathname, router]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -62,12 +73,15 @@ export default function ProjectsPage() {
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-4 w-4 text-gray-400" />
                 </div>
+                <label htmlFor="project-search" className="sr-only">Search projects</label>
                 <input
+                  id="project-search"
                   type="text"
                   placeholder="Search projects..."
                   className="form-input pl-10"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Search projects"
                 />
               </div>
               <Link
@@ -152,5 +166,27 @@ export default function ProjectsPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col min-h-screen">
+          <Navbar />
+          <main className="grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
+            </div>
+          </main>
+          <Footer />
+        </div>
+      }
+    >
+      <ProjectsPageInner />
+    </Suspense>
   );
 }
