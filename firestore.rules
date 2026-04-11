@@ -23,5 +23,16 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if request.auth != null;
     }
+
+    // Bookmarks - managed only via API routes with Admin SDK
+    match /bookmarks/{doc} {
+      allow read, write: if false;
+    }
+
+    // Comments - public read, managed only via API routes with Admin SDK
+    match /comments/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }

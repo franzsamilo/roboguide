@@ -16,9 +16,12 @@ import {
   LogOut,
   ExternalLink,
   Heart,
+  Bookmark,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import type { ProfileStats } from "@/app/api/profile/stats/route";
+import { listBookmarks, toggleBookmark, type Bookmark as BookmarkType } from "@/lib/api/bookmarks";
 
 export default function ProfilePage() {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -26,6 +29,8 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [bookmarks, setBookmarks] = useState<BookmarkType[]>([]);
+  const [bookmarksLoading, setBookmarksLoading] = useState(true);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -49,7 +54,31 @@ export default function ProfilePage() {
       }
     };
     fetchStats();
+
+    setBookmarksLoading(true);
+    listBookmarks()
+      .then((data) => setBookmarks(data))
+      .catch(() => {})
+      .finally(() => setBookmarksLoading(false));
   }, [user, authLoading, router]);
+
+  const removeBookmark = async (b: BookmarkType) => {
+    try {
+      await toggleBookmark({
+        entityType: b.entityType,
+        entityId: b.entityId,
+        title: b.title,
+        thumbnail: b.thumbnail,
+      });
+      setBookmarks((prev) => prev.filter((x) => x.id !== b.id));
+    } catch {}
+  };
+
+  const bookmarkHref = (b: BookmarkType) => {
+    if (b.entityType === "component") return `/wiki/${b.entityId}`;
+    if (b.entityType === "project") return `/projects/${b.entityId}`;
+    return `/guides/${b.entityId}`;
+  };
 
   if (authLoading || !user) {
     return (
@@ -252,6 +281,59 @@ export default function ProfilePage() {
                   </ul>
                 </section>
               )}
+
+              {/* Bookmarks */}
+              <section className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
+                    <Bookmark className="h-4 w-4" /> Your Bookmarks
+                  </h2>
+                  <span className="text-xs text-slate-400">{bookmarks.length} saved</span>
+                </div>
+                {bookmarksLoading ? (
+                  <div className="px-6 py-6 text-sm text-slate-400">Loading...</div>
+                ) : bookmarks.length === 0 ? (
+                  <div className="px-6 py-8 text-center text-sm text-slate-500">
+                    No bookmarks yet. Tap the Save button on any component, guide, or project to keep it here.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {bookmarks.map((b) => (
+                      <li key={b.id} className="flex items-center gap-3 px-6 py-3 hover:bg-slate-50 transition-colors group">
+                        <Link
+                          href={bookmarkHref(b)}
+                          className="flex items-center gap-3 flex-1 min-w-0"
+                        >
+                          <div className="w-10 h-10 rounded bg-slate-50 border border-slate-200 shrink-0 overflow-hidden flex items-center justify-center">
+                            {b.thumbnail ? (
+                              <img src={b.thumbnail} alt="" className="w-full h-full object-cover" />
+                            ) : b.entityType === "component" ? (
+                              <Cpu className="h-4 w-4 text-slate-300" />
+                            ) : b.entityType === "guide" ? (
+                              <BookOpen className="h-4 w-4 text-slate-300" />
+                            ) : (
+                              <FolderOpen className="h-4 w-4 text-slate-300" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">
+                              {b.title}
+                            </p>
+                            <p className="text-[10px] font-mono uppercase text-slate-400">{b.entityType}</p>
+                          </div>
+                        </Link>
+                        <button
+                          onClick={() => removeBookmark(b)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                          aria-label={`Remove ${b.title} from bookmarks`}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
 
               {/* Empty state for new contributors */}
               {stats.totalContributions === 0 && (

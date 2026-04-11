@@ -7,6 +7,7 @@ import Footer from "@/components/ui/Footer";
 import SpecsTable from "@/components/registry/SpecsTable";
 import MediaGallery from "@/components/registry/MediaGallery";
 import Markdown from "@/components/ui/Markdown";
+import BookmarkButton from "@/components/ui/BookmarkButton";
 import { motion } from "framer-motion";
 import { MapPin, Share2, ArrowLeft, ExternalLink, FileText, Copy, Check, Eye, Tag } from "lucide-react";
 import { getRegistryItemBySlug } from "@/lib/firebase/registryService";
@@ -189,7 +190,7 @@ export default function RegistryDetailPage() {
 
                 <div className="space-y-4">
                   {/* Quick Actions */}
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={handleShare}
                       className="flex-1 btn-outline justify-center text-sm"
@@ -197,12 +198,21 @@ export default function RegistryDetailPage() {
                       {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
                       {copied ? "Copied!" : "Share"}
                     </button>
+                    {item.id && (
+                      <BookmarkButton
+                        entityType="component"
+                        entityId={item.id}
+                        title={item.name}
+                        thumbnail={item.image}
+                        className="flex-1"
+                      />
+                    )}
                     {item.datasheet && (
                       <a
                         href={item.datasheet}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 btn-outline justify-center text-sm"
+                        className="w-full btn-outline justify-center text-sm"
                       >
                         <FileText className="h-4 w-4" /> Datasheet <ExternalLink className="h-3 w-3" />
                       </a>

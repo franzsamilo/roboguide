@@ -6,6 +6,7 @@ import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import MediaGallery from "@/components/registry/MediaGallery";
 import Markdown from "@/components/ui/Markdown";
+import BookmarkButton from "@/components/ui/BookmarkButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { motion } from "framer-motion";
 import { ArrowLeft, Code, ExternalLink, Copy, Check, User, Pencil } from "lucide-react";
@@ -102,6 +103,14 @@ export default function ProjectDetailPage() {
                     <Pencil className="h-4 w-4" />
                     Edit Project
                   </Link>
+                )}
+                {project.id && (
+                  <BookmarkButton
+                    entityType="project"
+                    entityId={project.id}
+                    title={project.title}
+                    thumbnail={project.coverImage}
+                  />
                 )}
               </div>
 

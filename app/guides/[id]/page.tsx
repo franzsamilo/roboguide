@@ -6,6 +6,7 @@ import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import MediaGallery from "@/components/registry/MediaGallery";
 import Markdown from "@/components/ui/Markdown";
+import BookmarkButton from "@/components/ui/BookmarkButton";
 import { motion } from "framer-motion";
 import { ArrowLeft, User, MapPin, ExternalLink } from "lucide-react";
 import { getGuideById } from "@/lib/firebase/guideService";
@@ -92,6 +93,14 @@ export default function GuideDetailPage() {
                     <User className="h-4 w-4 text-slate-600" />
                     <span className="text-sm font-medium text-gray-800">by {guide.authorName}</span>
                   </div>
+                )}
+                {guide.id && (
+                  <BookmarkButton
+                    entityType="guide"
+                    entityId={guide.id}
+                    title={guide.title}
+                    thumbnail={guide.mediaUrls?.[0]}
+                  />
                 )}
                 {guide.hyperlocalTags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
