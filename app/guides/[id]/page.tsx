@@ -7,6 +7,7 @@ import Footer from "@/components/ui/Footer";
 import MediaGallery from "@/components/registry/MediaGallery";
 import Markdown from "@/components/ui/Markdown";
 import BookmarkButton from "@/components/ui/BookmarkButton";
+import CommentSection from "@/components/ui/CommentSection";
 import { motion } from "framer-motion";
 import { ArrowLeft, User, MapPin, ExternalLink } from "lucide-react";
 import { getGuideById } from "@/lib/firebase/guideService";
@@ -138,6 +139,9 @@ export default function GuideDetailPage() {
                 </div>
               </section>
             )}
+
+            {/* Comments */}
+            {guide.id && <CommentSection entityType="guide" entityId={guide.id} />}
 
             {/* Footer - author credit again */}
             <div className="pt-8 border-t-2 border-slate-200">

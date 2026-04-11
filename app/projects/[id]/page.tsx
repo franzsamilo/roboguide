@@ -7,6 +7,7 @@ import Footer from "@/components/ui/Footer";
 import MediaGallery from "@/components/registry/MediaGallery";
 import Markdown from "@/components/ui/Markdown";
 import BookmarkButton from "@/components/ui/BookmarkButton";
+import CommentSection from "@/components/ui/CommentSection";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { motion } from "framer-motion";
 import { ArrowLeft, Code, ExternalLink, Copy, Check, User, Pencil } from "lucide-react";
@@ -205,6 +206,9 @@ export default function ProjectDetailPage() {
                 </div>
               </section>
             )}
+
+            {/* Comments */}
+            {project.id && <CommentSection entityType="project" entityId={project.id} />}
 
             {/* Code Block */}
             {project.code && (
