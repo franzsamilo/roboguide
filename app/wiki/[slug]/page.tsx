@@ -210,7 +210,7 @@ export default function RegistryDetailPage() {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-gray-900">Community Guides</h2>
                   <Link
-                    href={`/admin/guides/new?slug=${slug}`}
+                    href={`/submit?type=guide&slug=${slug}`}
                     className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
                   >
                     Write a Guide
@@ -258,7 +258,7 @@ export default function RegistryDetailPage() {
                     title="No Guides Yet"
                     message="Be the first to contribute a guide for this component!"
                     actionLabel="Create Guide"
-                    actionHref={`/admin/guides/new?slug=${slug}`}
+                    actionHref={`/submit?type=guide&slug=${slug}`}
                   />
                 )}
               </section>

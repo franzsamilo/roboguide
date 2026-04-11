@@ -65,17 +65,28 @@ export default function GuidesPage() {
                 {filtered.length} guides from the community
               </p>
             </div>
-            <div className="relative w-full md:w-80">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" />
+            <div className="flex gap-3">
+              <div className="relative w-full md:w-80">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400" />
+                </div>
+                <label htmlFor="guide-search" className="sr-only">Search guides</label>
+                <input
+                  id="guide-search"
+                  type="text"
+                  placeholder="Search guides..."
+                  className="form-input pl-10"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Search guides"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Search guides..."
-                className="form-input pl-10"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+              <Link
+                href="/submit?type=guide"
+                className="btn-primary whitespace-nowrap"
+              >
+                Write Guide
+              </Link>
             </div>
           </div>
         </header>
@@ -158,7 +169,9 @@ export default function GuidesPage() {
         ) : (
           <EmptyState
             title="No Guides Found"
-            message={search ? `No guides match "${search}".` : "No guides yet. Admins can create guides from the Admin panel."}
+            message={search ? `No guides match "${search}".` : "No guides yet. Be the first to share your knowledge!"}
+            actionLabel={search ? undefined : "Write a Guide"}
+            actionHref={search ? undefined : "/submit?type=guide"}
             icon={FileText}
           />
         )}

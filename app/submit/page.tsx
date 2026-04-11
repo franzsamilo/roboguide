@@ -11,17 +11,21 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { addRegistryItem } from "@/lib/api/registry";
 import { getRegistryItems, checkSlugExists } from "@/lib/firebase/registryService";
 import { addProject } from "@/lib/api/projects";
+import { addGuide } from "@/lib/api/guides";
 import { CATEGORIES } from "@/lib/schemas";
 import { motion, AnimatePresence } from "framer-motion";
-import { Cpu, Send, ArrowRight, ArrowLeft, CheckCircle2, Plus, X, Loader2, FolderOpen, AlertCircle, Save } from "lucide-react";
+import { Cpu, Send, ArrowRight, ArrowLeft, CheckCircle2, Plus, X, Loader2, FolderOpen, AlertCircle, Save, BookOpen } from "lucide-react";
 
 const DRAFT_KEY = "roboguide:submit-draft";
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+type SubmitType = "component" | "project" | "guide";
+
 type DraftShape = {
   compForm: any;
   projForm: any;
-  submitType: "component" | "project";
+  guideForm: any;
+  submitType: SubmitType;
   step: number;
   savedAt: number;
 };
@@ -31,9 +35,12 @@ function SubmitPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const initialType = searchParams.get("type") || "component";
+  const initialTypeRaw = searchParams.get("type") || "component";
+  const initialType: SubmitType =
+    initialTypeRaw === "project" || initialTypeRaw === "guide" ? initialTypeRaw : "component";
+  const initialGuideSlug = searchParams.get("slug") || "";
 
-  const [submitType, setSubmitType] = useState<"component" | "project">(initialType as "component" | "project");
+  const [submitType, setSubmitType] = useState<SubmitType>(initialType);
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -65,9 +72,20 @@ function SubmitPageInner() {
   const [partName, setPartName] = useState("");
   const [partQty, setPartQty] = useState(1);
 
+  // Guide form
+  const [guideForm, setGuideForm] = useState({
+    title: "",
+    registrySlug: initialGuideSlug,
+    excerpt: "",
+    content: "",
+    hyperlocalTags: [] as string[],
+    mediaUrls: [] as string[],
+  });
+  const [guideTagInput, setGuideTagInput] = useState("");
+
   useEffect(() => {
-    if (submitType === "component") {
-      getRegistryItems({ status: "published", pageSize: 100 }).then((r) =>
+    if (submitType === "component" || submitType === "guide") {
+      getRegistryItems({ status: "published", pageSize: 200 }).then((r) =>
         setRegistryItems(r.items.map((i) => ({ id: i.id, slug: i.slug, name: i.name })))
       );
     }
@@ -85,10 +103,12 @@ function SubmitPageInner() {
       }
       const hasContent =
         (draft.compForm?.name || draft.compForm?.description || (draft.compForm?.tags?.length ?? 0) > 0) ||
-        (draft.projForm?.title || draft.projForm?.description || (draft.projForm?.parts?.length ?? 0) > 0);
+        (draft.projForm?.title || draft.projForm?.description || (draft.projForm?.parts?.length ?? 0) > 0) ||
+        (draft.guideForm?.title || draft.guideForm?.content);
       if (!hasContent) return;
       if (draft.compForm) setCompForm(draft.compForm);
       if (draft.projForm) setProjForm(draft.projForm);
+      if (draft.guideForm) setGuideForm(draft.guideForm);
       if (draft.submitType) setSubmitType(draft.submitType);
       if (draft.step) setStep(Math.min(draft.step, 3));
       setDraftRestored(true);
@@ -103,7 +123,7 @@ function SubmitPageInner() {
     if (step === 4) return; // don't persist after success
     const timer = setTimeout(() => {
       try {
-        const draft: DraftShape = { compForm, projForm, submitType, step, savedAt: Date.now() };
+        const draft: DraftShape = { compForm, projForm, guideForm, submitType, step, savedAt: Date.now() };
         localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
         setDraftSaved(true);
         setTimeout(() => setDraftSaved(false), 1200);
@@ -112,7 +132,7 @@ function SubmitPageInner() {
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [compForm, projForm, submitType, step]);
+  }, [compForm, projForm, guideForm, submitType, step]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch {}
@@ -187,8 +207,15 @@ function SubmitPageInner() {
     if (s === 1) return !!projForm.title.trim() && !!projForm.description.trim();
     return true;
   };
+  const guideStepValid = (s: number): boolean => {
+    if (s === 1) return !!guideForm.title.trim() && !!guideForm.registrySlug;
+    if (s === 2) return !!guideForm.content.trim();
+    return true;
+  };
   const currentStepValid =
-    submitType === "component" ? compStepValid(step) : projStepValid(step);
+    submitType === "component" ? compStepValid(step) :
+    submitType === "project" ? projStepValid(step) :
+    guideStepValid(step);
 
   const handleContinue = () => {
     if (!currentStepValid) {
@@ -250,6 +277,31 @@ function SubmitPageInner() {
     }
   };
 
+  const handleGuideSubmit = async () => {
+    setSaving(true);
+    try {
+      await addGuide({
+        ...guideForm,
+        status: "published",
+        authorId: user.id,
+        authorName: user.name || "Unknown",
+      });
+      toast("Guide published!", "success");
+      clearDraft();
+      setStep(4);
+    } catch (err: any) {
+      toast(err.message || "Submission failed", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (submitType === "component") return handleComponentSubmit();
+    if (submitType === "project") return handleProjectSubmit();
+    return handleGuideSubmit();
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -292,35 +344,31 @@ function SubmitPageInner() {
 
         {/* Type Selector */}
         {step < 4 && (
-          <div className="flex mb-8 gap-4">
-            <button
-              onClick={() => { setSubmitType("component"); setStep(1); }}
-              className={`flex-1 p-5 card-flat flex items-center gap-3 transition-all ${
-                submitType === "component" ? "border-blue-500 bg-blue-50/50 ring-1 ring-blue-500" : "hover:border-gray-300"
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${submitType === "component" ? "bg-blue-100" : "bg-gray-100"}`}>
-                <Cpu className={`h-5 w-5 ${submitType === "component" ? "text-blue-600" : "text-gray-400"}`} />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900">Component</p>
-                <p className="text-xs text-gray-500">Add to hardware registry</p>
-              </div>
-            </button>
-            <button
-              onClick={() => { setSubmitType("project"); setStep(1); }}
-              className={`flex-1 p-5 card-flat flex items-center gap-3 transition-all ${
-                submitType === "project" ? "border-blue-500 bg-blue-50/50 ring-1 ring-blue-500" : "hover:border-gray-300"
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${submitType === "project" ? "bg-blue-100" : "bg-gray-100"}`}>
-                <FolderOpen className={`h-5 w-5 ${submitType === "project" ? "text-blue-600" : "text-gray-400"}`} />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900">Project</p>
-                <p className="text-xs text-gray-500">Share a build</p>
-              </div>
-            </button>
+          <div className="grid grid-cols-1 sm:grid-cols-3 mb-8 gap-3">
+            {[
+              { type: "component" as const, icon: Cpu, label: "Component", desc: "Add to hardware registry" },
+              { type: "guide" as const, icon: BookOpen, label: "Guide", desc: "Write a tutorial" },
+              { type: "project" as const, icon: FolderOpen, label: "Project", desc: "Share a build" },
+            ].map(({ type, icon: Icon, label, desc }) => {
+              const active = submitType === type;
+              return (
+                <button
+                  key={type}
+                  onClick={() => { setSubmitType(type); setStep(1); setShowTouched(false); }}
+                  className={`p-5 card-flat flex items-center gap-3 transition-all ${
+                    active ? "border-blue-500 bg-blue-50/50 ring-1 ring-blue-500" : "hover:border-gray-300"
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${active ? "bg-blue-100" : "bg-gray-100"}`}>
+                    <Icon className={`h-5 w-5 ${active ? "text-blue-600" : "text-gray-400"}`} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-gray-900">{label}</p>
+                    <p className="text-xs text-gray-500">{desc}</p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -724,6 +772,149 @@ function SubmitPageInner() {
             </motion.div>
           )}
 
+          {/* ─── GUIDE FLOW ─── */}
+          {submitType === "guide" && step === 1 && (
+            <motion.div key="guide1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
+              <div>
+                <label htmlFor="guide-title" className="form-label">Guide Title *</label>
+                <input
+                  id="guide-title"
+                  value={guideForm.title}
+                  onChange={(e) => setGuideForm((p) => ({ ...p, title: e.target.value }))}
+                  placeholder="e.g. Getting started with ESP32 over-the-air updates"
+                  className={`form-input ${showTouched && !guideForm.title.trim() ? "border-red-400 ring-1 ring-red-400" : ""}`}
+                  aria-invalid={showTouched && !guideForm.title.trim()}
+                />
+                {showTouched && !guideForm.title.trim() && (
+                  <p className="text-xs text-red-500 mt-1">Title is required</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="guide-component" className="form-label">Linked Component *</label>
+                <select
+                  id="guide-component"
+                  value={guideForm.registrySlug}
+                  onChange={(e) => setGuideForm((p) => ({ ...p, registrySlug: e.target.value }))}
+                  className={`form-input ${showTouched && !guideForm.registrySlug ? "border-red-400 ring-1 ring-red-400" : ""}`}
+                  aria-invalid={showTouched && !guideForm.registrySlug}
+                >
+                  <option value="">-- Choose a component --</option>
+                  {registryItems.map((i) => (
+                    <option key={i.slug} value={i.slug}>{i.name} ({i.slug})</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Every guide is linked to a component in the wiki so readers can find it from there.</p>
+                {showTouched && !guideForm.registrySlug && (
+                  <p className="text-xs text-red-500 mt-1">Pick the component this guide is about</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="guide-excerpt" className="form-label">Excerpt</label>
+                <textarea
+                  id="guide-excerpt"
+                  value={guideForm.excerpt}
+                  onChange={(e) => setGuideForm((p) => ({ ...p, excerpt: e.target.value.slice(0, 300) }))}
+                  rows={2}
+                  placeholder="A one- or two-sentence summary shown in listings..."
+                  className="form-input resize-none"
+                  maxLength={300}
+                />
+                <p className="text-xs text-gray-500 mt-1">{guideForm.excerpt.length}/300 characters</p>
+              </div>
+            </motion.div>
+          )}
+
+          {submitType === "guide" && step === 2 && (
+            <motion.div key="guide2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
+              <div>
+                <label htmlFor="guide-content" className="form-label">Guide Content *</label>
+                <textarea
+                  id="guide-content"
+                  value={guideForm.content}
+                  onChange={(e) => setGuideForm((p) => ({ ...p, content: e.target.value }))}
+                  rows={16}
+                  placeholder={"Write your guide in markdown.\n\n## Introduction\n...\n\n## Step 1\n```cpp\n// code here\n```"}
+                  className={`form-input resize-y font-mono text-sm ${showTouched && !guideForm.content.trim() ? "border-red-400 ring-1 ring-red-400" : ""}`}
+                  aria-invalid={showTouched && !guideForm.content.trim()}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Markdown supported — headings, lists, code blocks, links. {guideForm.content.length.toLocaleString()} characters.
+                </p>
+                {showTouched && !guideForm.content.trim() && (
+                  <p className="text-xs text-red-500 mt-1">Content is required</p>
+                )}
+              </div>
+              <div>
+                <label className="form-label">Hyperlocal tags</label>
+                <p className="text-xs text-gray-500 mb-2">Location or environment tags help others find guides relevant to their setting (e.g. "manila", "humid-climate", "battery-powered").</p>
+                <div className="flex gap-2">
+                  <input
+                    value={guideTagInput}
+                    onChange={(e) => setGuideTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (guideTagInput.trim()) {
+                          setGuideForm((p) => ({ ...p, hyperlocalTags: [...p.hyperlocalTags, guideTagInput.trim()] }));
+                          setGuideTagInput("");
+                        }
+                      }
+                    }}
+                    placeholder="Add tag..."
+                    className="form-input flex-1"
+                    aria-label="Add hyperlocal tag"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (guideTagInput.trim()) {
+                        setGuideForm((p) => ({ ...p, hyperlocalTags: [...p.hyperlocalTags, guideTagInput.trim()] }));
+                        setGuideTagInput("");
+                      }
+                    }}
+                    className="btn-outline px-3"
+                    aria-label="Add tag"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {guideForm.hyperlocalTags.map((tag) => (
+                    <span key={tag} className="badge badge-blue flex items-center gap-1">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => setGuideForm((p) => ({ ...p, hyperlocalTags: p.hyperlocalTags.filter((t) => t !== tag) }))}
+                        aria-label={`Remove tag ${tag}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {submitType === "guide" && step === 3 && (
+            <motion.div key="guide3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+              <div>
+                <label className="form-label">Media Gallery</label>
+                <p className="text-xs text-gray-500 mb-3">Optional images or videos to illustrate your guide.</p>
+                <MediaUploader
+                  basePath={`guides/${guideForm.registrySlug || "misc"}`}
+                  existingUrls={guideForm.mediaUrls}
+                  onChange={(urls) => setGuideForm((p) => ({ ...p, mediaUrls: urls }))}
+                />
+              </div>
+              <div className="card-flat p-8 text-center bg-gray-50">
+                <BookOpen className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-gray-700 mb-1">Ready to publish?</p>
+                <p className="text-xs text-gray-500">Your guide will appear on the {registryItems.find(r => r.slug === guideForm.registrySlug)?.name || "selected"} component page and in the community guides index.</p>
+              </div>
+            </motion.div>
+          )}
+
           {/* Success State */}
           {step === 4 && (
             <motion.div
@@ -742,26 +933,37 @@ function SubmitPageInner() {
                 <CheckCircle2 className="h-14 w-14 text-emerald-600" />
               </motion.div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                {submitType === "component" ? "Component Submitted!" : "Project Published!"}
+                {submitType === "component" ? "Component Submitted!" :
+                 submitType === "project" ? "Project Published!" :
+                 "Guide Published!"}
               </h2>
               <p className="text-gray-600 text-sm mb-2 max-w-md mx-auto">
                 {submitType === "component"
                   ? "Your component has been added to the registry and is now visible to the community."
-                  : "Your project is now live! Thank you for sharing with the community."}
+                  : submitType === "project"
+                  ? "Your project is now live! Thank you for sharing with the community."
+                  : "Your guide is now live and linked to its component. Thank you for sharing your knowledge!"}
               </p>
               <p className="text-emerald-600 text-sm font-medium mb-8">Success!</p>
               <div className="flex flex-col sm:flex-row justify-center gap-3">
                 <button
-                  onClick={() => router.push(submitType === "component" ? "/wiki" : "/projects")}
+                  onClick={() => router.push(
+                    submitType === "component" ? "/wiki" :
+                    submitType === "project" ? "/projects" :
+                    "/guides"
+                  )}
                   className="btn-primary"
                 >
-                  {submitType === "component" ? "Browse Wiki" : "View Projects"}
+                  {submitType === "component" ? "Browse Wiki" :
+                   submitType === "project" ? "View Projects" :
+                   "View Guides"}
                 </button>
                 <button
                   onClick={() => {
                     setStep(1);
                     setCompForm({ name: "", slug: "", category: "", description: "", tags: [], specifications: {}, mediaUrls: [], image: "", datasheet: "", relatedSlugs: [] });
                     setProjForm({ title: "", description: "", content: "", code: "", codeLanguage: "cpp", tags: [], mediaUrls: [], coverImage: "", parts: [] });
+                    setGuideForm({ title: "", registrySlug: "", excerpt: "", content: "", hyperlocalTags: [], mediaUrls: [] });
                   }}
                   className="btn-outline"
                 >
@@ -783,10 +985,13 @@ function SubmitPageInner() {
               <ArrowLeft className="h-4 w-4" /> Back
             </button>
             {step === totalSteps ? (
-              <button onClick={submitType === "component" ? handleComponentSubmit : handleProjectSubmit} disabled={saving}
+              <button onClick={handleSubmit} disabled={saving}
                 className="btn-primary disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {saving ? "Submitting..." : submitType === "component" ? "Submit Component" : "Publish Project"}
+                {saving ? "Submitting..." :
+                 submitType === "component" ? "Submit Component" :
+                 submitType === "project" ? "Publish Project" :
+                 "Publish Guide"}
               </button>
             ) : (
               <button
