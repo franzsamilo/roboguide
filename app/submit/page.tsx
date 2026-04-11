@@ -9,12 +9,22 @@ import SingleFileUpload from "@/components/admin/SingleFileUpload";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { addRegistryItem } from "@/lib/api/registry";
-import { getRegistryItems } from "@/lib/firebase/registryService";
+import { getRegistryItems, checkSlugExists } from "@/lib/firebase/registryService";
 import { addProject } from "@/lib/api/projects";
 import { CATEGORIES } from "@/lib/schemas";
 import { motion, AnimatePresence } from "framer-motion";
-import { Cpu, Send, ArrowRight, ArrowLeft, CheckCircle2, Plus, X, Loader2, FolderOpen, Code } from "lucide-react";
-import Link from "next/link";
+import { Cpu, Send, ArrowRight, ArrowLeft, CheckCircle2, Plus, X, Loader2, FolderOpen, AlertCircle, Save } from "lucide-react";
+
+const DRAFT_KEY = "roboguide:submit-draft";
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+type DraftShape = {
+  compForm: any;
+  projForm: any;
+  submitType: "component" | "project";
+  step: number;
+  savedAt: number;
+};
 
 function SubmitPageInner() {
   const { user, loading: authLoading } = useAuth();
@@ -26,6 +36,9 @@ function SubmitPageInner() {
   const [submitType, setSubmitType] = useState<"component" | "project">(initialType as "component" | "project");
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [showTouched, setShowTouched] = useState(false);
 
   // Component form
   const [compForm, setCompForm] = useState({
@@ -35,6 +48,8 @@ function SubmitPageInner() {
     relatedSlugs: [] as string[],
   });
   const [slugConflict, setSlugConflict] = useState(false);
+  const [slugChecking, setSlugChecking] = useState(false);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [specKey, setSpecKey] = useState("");
   const [specValue, setSpecValue] = useState("");
@@ -57,6 +72,77 @@ function SubmitPageInner() {
       );
     }
   }, [submitType]);
+
+  // ─── Draft Autosave: restore on mount ───
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft: DraftShape = JSON.parse(raw);
+      if (!draft?.savedAt || Date.now() - draft.savedAt > DRAFT_TTL_MS) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      const hasContent =
+        (draft.compForm?.name || draft.compForm?.description || (draft.compForm?.tags?.length ?? 0) > 0) ||
+        (draft.projForm?.title || draft.projForm?.description || (draft.projForm?.parts?.length ?? 0) > 0);
+      if (!hasContent) return;
+      if (draft.compForm) setCompForm(draft.compForm);
+      if (draft.projForm) setProjForm(draft.projForm);
+      if (draft.submitType) setSubmitType(draft.submitType);
+      if (draft.step) setStep(Math.min(draft.step, 3));
+      setDraftRestored(true);
+    } catch {
+      // ignore corrupt draft
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─── Draft Autosave: persist on change ───
+  useEffect(() => {
+    if (step === 4) return; // don't persist after success
+    const timer = setTimeout(() => {
+      try {
+        const draft: DraftShape = { compForm, projForm, submitType, step, savedAt: Date.now() };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        setDraftSaved(true);
+        setTimeout(() => setDraftSaved(false), 1200);
+      } catch {
+        // quota exceeded — ignore
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [compForm, projForm, submitType, step]);
+
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    setDraftRestored(false);
+  };
+
+  // ─── Debounced slug availability check ───
+  useEffect(() => {
+    if (submitType !== "component") return;
+    const slug = compForm.slug || autoSlug(compForm.name);
+    if (!slug || slug.length < 2) {
+      setSlugAvailable(null);
+      setSlugChecking(false);
+      return;
+    }
+    setSlugChecking(true);
+    setSlugAvailable(null);
+    const timer = setTimeout(async () => {
+      try {
+        const exists = await checkSlugExists(slug);
+        setSlugAvailable(!exists);
+      } catch {
+        setSlugAvailable(null);
+      } finally {
+        setSlugChecking(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compForm.slug, compForm.name, submitType]);
 
   if (authLoading) return null;
 
@@ -91,6 +177,28 @@ function SubmitPageInner() {
 
   const totalSteps = 3;
 
+  // ─── Per-step validity gates ───
+  const compStepValid = (s: number): boolean => {
+    const slug = compForm.slug || autoSlug(compForm.name);
+    if (s === 1) return !!compForm.name.trim() && !!compForm.category && !!slug && slugAvailable !== false;
+    return true;
+  };
+  const projStepValid = (s: number): boolean => {
+    if (s === 1) return !!projForm.title.trim() && !!projForm.description.trim();
+    return true;
+  };
+  const currentStepValid =
+    submitType === "component" ? compStepValid(step) : projStepValid(step);
+
+  const handleContinue = () => {
+    if (!currentStepValid) {
+      setShowTouched(true);
+      return;
+    }
+    setShowTouched(false);
+    setStep((s) => Math.min(s + 1, totalSteps));
+  };
+
   const handleComponentSubmit = async () => {
     setSlugConflict(false);
     setSaving(true);
@@ -105,6 +213,7 @@ function SubmitPageInner() {
         relatedSlugs: compForm.relatedSlugs || [],
       });
       toast("Component added to registry!", "success");
+      clearDraft();
       setStep(4);
     } catch (err: any) {
       const msg = err.message || "Submission failed";
@@ -132,6 +241,7 @@ function SubmitPageInner() {
         authorName: user.name || "Unknown",
       });
       toast("Project published!", "success");
+      clearDraft();
       setStep(4);
     } catch (err: any) {
       toast(err.message || "Submission failed", "error");
@@ -152,7 +262,33 @@ function SubmitPageInner() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Contribute to ROBOGUIDE</h1>
           <p className="text-gray-500 text-sm mt-2">Share your knowledge with the community</p>
+          {draftSaved && step < 4 && (
+            <p className="text-xs text-emerald-600 mt-2 inline-flex items-center gap-1">
+              <Save className="h-3 w-3" /> Draft saved
+            </p>
+          )}
         </header>
+
+        {draftRestored && step < 4 && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm">
+              <p className="font-semibold text-amber-900">Draft restored</p>
+              <p className="text-amber-700 text-xs mt-0.5">We found unsaved work from your last session. Continue where you left off, or discard it.</p>
+            </div>
+            <button
+              onClick={() => {
+                clearDraft();
+                setCompForm({ name: "", slug: "", category: "", description: "", tags: [], specifications: {}, mediaUrls: [], image: "", datasheet: "", relatedSlugs: [] });
+                setProjForm({ title: "", description: "", content: "", code: "", codeLanguage: "cpp", tags: [], mediaUrls: [], coverImage: "", parts: [] });
+                setStep(1);
+              }}
+              className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline shrink-0"
+            >
+              Discard
+            </button>
+          </div>
+        )}
 
         {/* Type Selector */}
         {step < 4 && (
@@ -206,34 +342,50 @@ function SubmitPageInner() {
             <motion.div key="comp1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="form-label">Name *</label>
+                  <label htmlFor="comp-name" className="form-label">Name *</label>
                   <input
+                    id="comp-name"
                     value={compForm.name}
                     onChange={(e) => setCompForm((p) => ({ ...p, name: e.target.value, slug: p.slug || autoSlug(e.target.value) }))}
                     placeholder="e.g. ESP32-WROOM-32"
-                    className="form-input"
+                    className={`form-input ${showTouched && !compForm.name.trim() ? "border-red-400 ring-1 ring-red-400" : ""}`}
+                    aria-invalid={showTouched && !compForm.name.trim()}
                   />
+                  {showTouched && !compForm.name.trim() && (
+                    <p className="text-xs text-red-500 mt-1">Name is required</p>
+                  )}
                 </div>
                 <div>
-                  <label className="form-label">Category *</label>
+                  <label htmlFor="comp-category" className="form-label">Category *</label>
                   <select
+                    id="comp-category"
                     value={compForm.category}
                     onChange={(e) => setCompForm((p) => ({ ...p, category: e.target.value }))}
-                    className="form-input"
+                    className={`form-input ${showTouched && !compForm.category ? "border-red-400 ring-1 ring-red-400" : ""}`}
+                    aria-invalid={showTouched && !compForm.category}
                   >
                     <option value="">Select category...</option>
                     {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
+                  {showTouched && !compForm.category && (
+                    <p className="text-xs text-red-500 mt-1">Category is required</p>
+                  )}
                 </div>
               </div>
               <div>
-                <label className="form-label">URL slug *</label>
+                <label htmlFor="comp-slug" className="form-label">URL slug *</label>
                 <div className="flex gap-2">
                   <input
+                    id="comp-slug"
                     value={compForm.slug || autoSlug(compForm.name)}
                     onChange={(e) => setCompForm((p) => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/(^-|-$)/g, "") }))}
                     placeholder="e.g. esp32-wroom-32"
-                    className={`form-input font-mono flex-1 ${slugConflict ? "border-amber-500 ring-1 ring-amber-500" : ""}`}
+                    className={`form-input font-mono flex-1 ${
+                      slugAvailable === false ? "border-red-400 ring-1 ring-red-400" :
+                      slugAvailable === true ? "border-emerald-400 ring-1 ring-emerald-400" :
+                      slugConflict ? "border-amber-500 ring-1 ring-amber-500" : ""
+                    }`}
+                    aria-invalid={slugAvailable === false}
                   />
                   <button
                     type="button"
@@ -244,18 +396,35 @@ function SubmitPageInner() {
                     Random
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Must be unique. Used in URLs like /wiki/your-slug</p>
-                {slugConflict && <p className="text-xs text-amber-600 mt-1">A unique slug was suggested above. Edit if needed, then submit again.</p>}
+                <div className="mt-1 flex items-center gap-2 text-xs min-h-4">
+                  {slugChecking ? (
+                    <span className="text-gray-400 inline-flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Checking availability...
+                    </span>
+                  ) : slugAvailable === true ? (
+                    <span className="text-emerald-600 inline-flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Slug is available
+                    </span>
+                  ) : slugAvailable === false ? (
+                    <span className="text-red-500 inline-flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" /> Slug is already taken
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">Must be unique. Used in URLs like /wiki/your-slug</span>
+                  )}
+                </div>
               </div>
               <div>
-                <label className="form-label">Description</label>
+                <label htmlFor="comp-description" className="form-label">Description</label>
                 <textarea
+                  id="comp-description"
                   value={compForm.description}
                   onChange={(e) => setCompForm((p) => ({ ...p, description: e.target.value }))}
                   rows={4}
-                  placeholder="Technical description and use cases..."
+                  placeholder="Technical description and use cases... (Markdown supported)"
                   className="form-input resize-none"
                 />
+                <p className="text-xs text-gray-500 mt-1">Markdown supported — use **bold**, *italic*, `code`, lists, and links.</p>
               </div>
             </motion.div>
           )}
@@ -386,19 +555,45 @@ function SubmitPageInner() {
           {submitType === "project" && step === 1 && (
             <motion.div key="proj1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
               <div>
-                <label className="form-label">Project Title *</label>
-                <input value={projForm.title} onChange={(e) => setProjForm((p) => ({ ...p, title: e.target.value }))}
-                  placeholder="e.g. Solar-Powered Weather Station" className="form-input" />
+                <label htmlFor="proj-title" className="form-label">Project Title *</label>
+                <input
+                  id="proj-title"
+                  value={projForm.title}
+                  onChange={(e) => setProjForm((p) => ({ ...p, title: e.target.value }))}
+                  placeholder="e.g. Solar-Powered Weather Station"
+                  className={`form-input ${showTouched && !projForm.title.trim() ? "border-red-400 ring-1 ring-red-400" : ""}`}
+                  aria-invalid={showTouched && !projForm.title.trim()}
+                />
+                {showTouched && !projForm.title.trim() && (
+                  <p className="text-xs text-red-500 mt-1">Title is required</p>
+                )}
               </div>
               <div>
-                <label className="form-label">Description *</label>
-                <textarea value={projForm.description} onChange={(e) => setProjForm((p) => ({ ...p, description: e.target.value }))}
-                  rows={3} placeholder="Brief overview of your project..." className="form-input resize-none" />
+                <label htmlFor="proj-description" className="form-label">Description *</label>
+                <textarea
+                  id="proj-description"
+                  value={projForm.description}
+                  onChange={(e) => setProjForm((p) => ({ ...p, description: e.target.value }))}
+                  rows={3}
+                  placeholder="Brief overview of your project..."
+                  className={`form-input resize-none ${showTouched && !projForm.description.trim() ? "border-red-400 ring-1 ring-red-400" : ""}`}
+                  aria-invalid={showTouched && !projForm.description.trim()}
+                />
+                {showTouched && !projForm.description.trim() && (
+                  <p className="text-xs text-red-500 mt-1">Description is required</p>
+                )}
               </div>
               <div>
-                <label className="form-label">Detailed Write-up</label>
-                <textarea value={projForm.content} onChange={(e) => setProjForm((p) => ({ ...p, content: e.target.value }))}
-                  rows={8} placeholder="Full project details, build process, lessons learned..." className="form-input resize-none" />
+                <label htmlFor="proj-content" className="form-label">Detailed Write-up</label>
+                <textarea
+                  id="proj-content"
+                  value={projForm.content}
+                  onChange={(e) => setProjForm((p) => ({ ...p, content: e.target.value }))}
+                  rows={8}
+                  placeholder="Full project details, build process, lessons learned... (Markdown supported)"
+                  className="form-input resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">Markdown supported — use headings, lists, code blocks, and links.</p>
               </div>
             </motion.div>
           )}
@@ -594,8 +789,11 @@ function SubmitPageInner() {
                 {saving ? "Submitting..." : submitType === "component" ? "Submit Component" : "Publish Project"}
               </button>
             ) : (
-              <button onClick={() => setStep((s) => Math.min(s + 1, totalSteps))}
-                className="btn-primary">
+              <button
+                onClick={handleContinue}
+                disabled={!currentStepValid && showTouched}
+                className="btn-primary disabled:opacity-50"
+              >
                 Continue <ArrowRight className="h-4 w-4" />
               </button>
             )}
