@@ -6,6 +6,7 @@ import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import SpecsTable from "@/components/registry/SpecsTable";
 import MediaGallery from "@/components/registry/MediaGallery";
+import Markdown from "@/components/ui/Markdown";
 import { motion } from "framer-motion";
 import { MapPin, Share2, ArrowLeft, ExternalLink, FileText, Copy, Check, Eye, Tag } from "lucide-react";
 import { getRegistryItemBySlug } from "@/lib/firebase/registryService";
@@ -142,7 +143,7 @@ export default function RegistryDetailPage() {
                         </a>
                       )
                     ) : (
-                      <pre className="text-xs font-mono text-gray-700 whitespace-pre-wrap overflow-x-auto">{item.pinout}</pre>
+                      <Markdown>{item.pinout}</Markdown>
                     )}
                   </div>
                 </div>
@@ -162,9 +163,9 @@ export default function RegistryDetailPage() {
                 </div>
                 <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-3">{item.name}</h1>
                 {item.description && (
-                  <p className="text-gray-500 text-lg leading-relaxed max-w-2xl">
-                    {item.description}
-                  </p>
+                  <div className="max-w-2xl">
+                    <Markdown>{item.description}</Markdown>
+                  </div>
                 )}
 
                 {item.tags.length > 0 && (

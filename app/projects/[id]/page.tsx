@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import MediaGallery from "@/components/registry/MediaGallery";
+import Markdown from "@/components/ui/Markdown";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { motion } from "framer-motion";
 import { ArrowLeft, Code, ExternalLink, Copy, Check, User, Pencil } from "lucide-react";
@@ -82,7 +83,9 @@ export default function ProjectDetailPage() {
                 </span>
               </div>
               <h1 className="text-4xl md:text-5xl font-bold tracking-tighter uppercase mb-4 text-gray-900">{project.title}</h1>
-              <p className="text-slate-600 text-lg leading-relaxed font-sans max-w-3xl">{project.description}</p>
+              <div className="max-w-3xl text-slate-600 text-lg">
+                <Markdown>{project.description}</Markdown>
+              </div>
 
               <div className="flex items-center gap-4 mt-4 flex-wrap">
                 {project.authorName && (
@@ -139,9 +142,7 @@ export default function ProjectDetailPage() {
                   <h2 className="text-sm font-bold uppercase tracking-wider text-slate-600">Project Details</h2>
                 </div>
                 <div className="p-8">
-                  <div className="prose prose-sm max-w-none font-sans whitespace-pre-wrap text-slate-700 leading-relaxed">
-                    {project.content}
-                  </div>
+                  <Markdown>{project.content}</Markdown>
                 </div>
               </section>
             )}

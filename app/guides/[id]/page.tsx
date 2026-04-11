@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
 import MediaGallery from "@/components/registry/MediaGallery";
+import Markdown from "@/components/ui/Markdown";
 import { motion } from "framer-motion";
 import { ArrowLeft, User, MapPin, ExternalLink } from "lucide-react";
 import { getGuideById } from "@/lib/firebase/guideService";
@@ -113,9 +114,7 @@ export default function GuideDetailPage() {
                 <h2 className="text-sm font-bold uppercase tracking-wider text-slate-600">Content</h2>
               </div>
               <div className="p-8">
-                <div className="prose prose-sm max-w-none font-sans whitespace-pre-wrap text-slate-700 leading-relaxed">
-                  {guide.content}
-                </div>
+                <Markdown>{guide.content}</Markdown>
               </div>
             </section>
 
